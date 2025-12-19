@@ -4,53 +4,71 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <title>改良版・ブロック崩し</title>
+    <title>本格ブロック崩し</title>
     <style>
-        body { background: #222; color: #fff; text-align: center; font-family: sans-serif; overflow: hidden; touch-action: none; margin: 0; padding: 0; }
-        canvas { background: #000; display: block; margin: 10px auto; border: 2px solid #fff; max-width: 95vw; max-height: 70vh; }
-        .info { margin-top: 10px; font-size: 20px; height: 30px; }
-        #restartBtn { display: none; padding: 10px 20px; font-size: 18px; background: #28a745; color: white; border: none; border-radius: 5px; margin-top: 10px; }
+        body { background: #222; color: #fff; text-align: center; font-family: sans-serif; overflow: hidden; touch-action: none; margin: 0; }
+        canvas { background: #000; display: block; margin: 5px auto; border: 2px solid #fff; max-width: 95vw; max-height: 65vh; }
+        .info-panel { display: flex; justify-content: space-around; font-size: 18px; margin: 5px; }
+        #restartBtn { display: none; padding: 15px 30px; font-size: 20px; background: #28a745; color: white; border: none; border-radius: 5px; margin-top: 10px; }
+        .timer-warning { color: #ff4444; font-weight: bold; }
     </style>
 </head>
 <body>
-    <h1>BLOCK BREAKER</h1>
-    <div class="info">Score: <span id="score">0</span></div>
-    <canvas id="gameCanvas" width="480" height="320"></canvas>
-    <button id="restartBtn" onclick="resetGame()">もう一度遊ぶ</button>
-    <p>画面をなぞってバーを動かしてね</p>
+    <h2 style="margin: 5px;">BLOCK BREAKER</h2>
+    <div class="info-panel">
+        <div>スコア: <span id="score">0</span></div>
+        <div>残り時間: <span id="timer">60</span>s</div>
+    </div>
+    <canvas id="gameCanvas" width="400" height="500"></canvas>
+    <button id="restartBtn" onclick="resetGame()">リベンジする</button>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
         const scoreDisplay = document.getElementById("score");
+        const timerDisplay = document.getElementById("timer");
         const restartBtn = document.getElementById("restartBtn");
 
+        // --- ゲーム設定 ---
         let score = 0;
-        const ballRadius = 8;
-        let x, y, dx, dy, paddleX, bricks;
-        const paddleHeight = 15;
-        let paddleWidth = 80;
-        const brickRowCount = 3;
-        const brickColumnCount = 5;
-        const brickWidth = 75;
-        const brickHeight = 20;
-        const brickPadding = 10;
-        const brickOffsetTop = 30;
-        const brickOffsetLeft = 35;
+        let timeLeft = 60; // 制限時間（秒）
+        let gameTimer;
         let isGameOver = false;
+
+        const ballRadius = 6;
+        let x, y, dx, dy;
+        let baseSpeed = 3; // 初速度
+
+        const paddleHeight = 12;
+        let paddleWidth = 60;
+        let paddleX;
+
+        // ブロックの設定（数を増やしました）
+        const brickRowCount = 6;    // 縦6列
+        const brickColumnCount = 7; // 横7列
+        const brickWidth = 45;
+        const brickHeight = 15;
+        const brickPadding = 7;
+        const brickOffsetTop = 40;
+        const brickOffsetLeft = 20;
+
+        let bricks = [];
 
         function initGame() {
             score = 0;
+            timeLeft = 60;
+            isGameOver = false;
             scoreDisplay.innerHTML = score;
+            timerDisplay.innerHTML = timeLeft;
+            timerDisplay.classList.remove("timer-warning");
+            restartBtn.style.display = "none";
+
             x = canvas.width / 2;
             y = canvas.height - 30;
-            dx = 3;
-            dy = -3;
+            dx = baseSpeed;
+            dy = -baseSpeed;
             paddleX = (canvas.width - paddleWidth) / 2;
-            isGameOver = false;
-            restartBtn.style.display = "none";
-            
+
             bricks = [];
             for(let c=0; c<brickColumnCount; c++) {
                 bricks[c] = [];
@@ -58,28 +76,40 @@
                     bricks[c][r] = { x: 0, y: 0, status: 1 };
                 }
             }
+
+            // タイマー開始
+            if(gameTimer) clearInterval(gameTimer);
+            gameTimer = setInterval(() => {
+                if(!isGameOver) {
+                    timeLeft--;
+                    timerDisplay.innerHTML = timeLeft;
+                    if(timeLeft <= 10) timerDisplay.classList.add("timer-warning");
+                    if(timeLeft <= 0) endGame("タイムアップ！");
+                }
+            }, 1000);
         }
 
-        function touchMoveHandler(e) {
-            e.preventDefault();
-            const touch = e.touches[0];
+        // --- 操作系 ---
+        function movePaddle(clientX) {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
-            const relativeX = (touch.clientX - rect.left) * scaleX;
-            if(relativeX > 0 && relativeX < canvas.width) {
-                paddleX = relativeX - paddleWidth / 2;
-            }
+            let relativeX = (clientX - rect.left) * scaleX;
+            paddleX = relativeX - paddleWidth / 2;
+            // 画面外に出ないように制限
+            if(paddleX < 0) paddleX = 0;
+            if(paddleX + paddleWidth > canvas.width) paddleX = canvas.width - paddleWidth;
         }
 
-        document.addEventListener("touchmove", touchMoveHandler, {passive: false});
+        document.addEventListener("touchmove", (e) => {
+            e.preventDefault();
+            movePaddle(e.touches[0].clientX);
+        }, {passive: false});
+
         document.addEventListener("mousemove", (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const relativeX = e.clientX - rect.left;
-            if(relativeX > 0 && relativeX < canvas.width) {
-                paddleX = relativeX - paddleWidth / 2;
-            }
+            movePaddle(e.clientX);
         });
 
+        // --- メインロジック ---
         function collisionDetection() {
             for(let c=0; c<brickColumnCount; c++) {
                 for(let r=0; r<brickRowCount; r++) {
@@ -90,8 +120,14 @@
                             b.status = 0;
                             score++;
                             scoreDisplay.innerHTML = score;
+
+                            // 【加速ポイント】ブロックが壊れるたびに少しずつ速くする
+                            let speedUp = 1 + (score * 0.02); // 1個壊すごとに2%速くなる
+                            dx = (dx > 0 ? baseSpeed : -baseSpeed) * speedUp;
+                            dy = (dy > 0 ? baseSpeed : -baseSpeed) * speedUp;
+
                             if(score == brickRowCount * brickColumnCount) {
-                                endGame("クリア！おめでとう！");
+                                endGame("全消しクリア！スコア: " + (score + timeLeft));
                             }
                         }
                     }
@@ -101,9 +137,13 @@
 
         function endGame(msg) {
             isGameOver = true;
+            clearInterval(gameTimer);
+            ctx.fillStyle = "rgba(0,0,0,0.7)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = "white";
-            ctx.font = "24px sans-serif";
-            ctx.fillText(msg, canvas.width/4, canvas.height/2);
+            ctx.font = "24px Bold sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(msg, canvas.width/2, canvas.height/2);
             restartBtn.style.display = "inline-block";
         }
 
@@ -116,8 +156,8 @@
             if(isGameOver) return;
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // ブロック描画
+
+            // ブロック
             for(let c=0; c<brickColumnCount; c++) {
                 for(let r=0; r<brickRowCount; r++) {
                     if(bricks[c][r].status == 1) {
@@ -125,7 +165,8 @@
                         let by = (r * (brickHeight + brickPadding)) + brickOffsetTop;
                         bricks[c][r].x = bx;
                         bricks[c][r].y = by;
-                        ctx.fillStyle = "#ff4444";
+                        // 列によって色を変える
+                        ctx.fillStyle = `hsl(${r * 40}, 70%, 50%)`;
                         ctx.fillRect(bx, by, brickWidth, brickHeight);
                     }
                 }
@@ -134,7 +175,7 @@
             // 玉
             ctx.beginPath();
             ctx.arc(x, y, ballRadius, 0, Math.PI*2);
-            ctx.fillStyle = "#0095DD";
+            ctx.fillStyle = "#fff";
             ctx.fill();
             ctx.closePath();
 
@@ -144,6 +185,7 @@
 
             collisionDetection();
 
+            // 壁反射
             if(x + dx > canvas.width - ballRadius || x + dx < ballRadius) dx = -dx;
             if(y + dy < ballRadius) dy = -dy;
             else if(y + dy > canvas.height - ballRadius) {
