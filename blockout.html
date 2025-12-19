@@ -2,37 +2,35 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>シンプル・ブロック崩し</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <title>改良版・ブロック崩し</title>
     <style>
-        body { background: #222; color: #fff; text-align: center; font-family: sans-serif; overflow: hidden; touch-action: none; }
-        canvas { background: #000; display: block; margin: 0 auto; border: 2px solid #fff; max-width: 100%; }
-        .info { margin-top: 10px; font-size: 20px; }
+        body { background: #222; color: #fff; text-align: center; font-family: sans-serif; overflow: hidden; touch-action: none; margin: 0; padding: 0; }
+        canvas { background: #000; display: block; margin: 10px auto; border: 2px solid #fff; max-width: 95vw; max-height: 70vh; }
+        .info { margin-top: 10px; font-size: 20px; height: 30px; }
+        #restartBtn { display: none; padding: 10px 20px; font-size: 18px; background: #28a745; color: white; border: none; border-radius: 5px; margin-top: 10px; }
     </style>
 </head>
 <body>
     <h1>BLOCK BREAKER</h1>
     <div class="info">Score: <span id="score">0</span></div>
     <canvas id="gameCanvas" width="480" height="320"></canvas>
-    <p>マウスかタッチでバーを動かせます</p>
+    <button id="restartBtn" onclick="resetGame()">もう一度遊ぶ</button>
+    <p>画面をなぞってバーを動かしてね</p>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
         const scoreDisplay = document.getElementById("score");
+        const restartBtn = document.getElementById("restartBtn");
 
-        // ゲームの設定
         let score = 0;
         const ballRadius = 8;
-        let x = canvas.width / 2;
-        let y = canvas.height - 30;
-        let dx = 3;  // 玉の横速度
-        let dy = -3; // 玉の縦速度
-
-        const paddleHeight = 12;
-        const paddleWidth = 80;
-        let paddleX = (canvas.width - paddleWidth) / 2;
-
+        let x, y, dx, dy, paddleX, bricks;
+        const paddleHeight = 15;
+        let paddleWidth = 80;
         const brickRowCount = 3;
         const brickColumnCount = 5;
         const brickWidth = 75;
@@ -40,37 +38,48 @@
         const brickPadding = 10;
         const brickOffsetTop = 30;
         const brickOffsetLeft = 35;
+        let isGameOver = false;
 
-        // ブロックのデータ作成
-        const bricks = [];
-        for(let c=0; c<brickColumnCount; c++) {
-            bricks[c] = [];
-            for(let r=0; r<brickRowCount; r++) {
-                bricks[c][r] = { x: 0, y: 0, status: 1 };
-            }
-        }
-
-        // 操作設定：マウスとタッチ両対応
-        document.addEventListener("mousemove", mouseMoveHandler, false);
-        document.addEventListener("touchmove", touchMoveHandler, {passive: false});
-
-        function mouseMoveHandler(e) {
-            const relativeX = e.clientX - canvas.offsetLeft;
-            if(relativeX > 0 && relativeX < canvas.width) {
-                paddleX = relativeX - paddleWidth / 2;
+        function initGame() {
+            score = 0;
+            scoreDisplay.innerHTML = score;
+            x = canvas.width / 2;
+            y = canvas.height - 30;
+            dx = 3;
+            dy = -3;
+            paddleX = (canvas.width - paddleWidth) / 2;
+            isGameOver = false;
+            restartBtn.style.display = "none";
+            
+            bricks = [];
+            for(let c=0; c<brickColumnCount; c++) {
+                bricks[c] = [];
+                for(let r=0; r<brickRowCount; r++) {
+                    bricks[c][r] = { x: 0, y: 0, status: 1 };
+                }
             }
         }
 
         function touchMoveHandler(e) {
             e.preventDefault();
             const touch = e.touches[0];
-            const relativeX = touch.clientX - canvas.offsetLeft;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const relativeX = (touch.clientX - rect.left) * scaleX;
             if(relativeX > 0 && relativeX < canvas.width) {
                 paddleX = relativeX - paddleWidth / 2;
             }
         }
 
-        // 衝突判定
+        document.addEventListener("touchmove", touchMoveHandler, {passive: false});
+        document.addEventListener("mousemove", (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const relativeX = e.clientX - rect.left;
+            if(relativeX > 0 && relativeX < canvas.width) {
+                paddleX = relativeX - paddleWidth / 2;
+            }
+        });
+
         function collisionDetection() {
             for(let c=0; c<brickColumnCount; c++) {
                 for(let r=0; r<brickRowCount; r++) {
@@ -82,8 +91,7 @@
                             score++;
                             scoreDisplay.innerHTML = score;
                             if(score == brickRowCount * brickColumnCount) {
-                                alert("クリアおめでとう！");
-                                document.location.reload();
+                                endGame("クリア！おめでとう！");
                             }
                         }
                     }
@@ -91,56 +99,58 @@
             }
         }
 
-        function drawBall() {
+        function endGame(msg) {
+            isGameOver = true;
+            ctx.fillStyle = "white";
+            ctx.font = "24px sans-serif";
+            ctx.fillText(msg, canvas.width/4, canvas.height/2);
+            restartBtn.style.display = "inline-block";
+        }
+
+        function resetGame() {
+            initGame();
+            draw();
+        }
+
+        function draw() {
+            if(isGameOver) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // ブロック描画
+            for(let c=0; c<brickColumnCount; c++) {
+                for(let r=0; r<brickRowCount; r++) {
+                    if(bricks[c][r].status == 1) {
+                        let bx = (c * (brickWidth + brickPadding)) + brickOffsetLeft;
+                        let by = (r * (brickHeight + brickPadding)) + brickOffsetTop;
+                        bricks[c][r].x = bx;
+                        bricks[c][r].y = by;
+                        ctx.fillStyle = "#ff4444";
+                        ctx.fillRect(bx, by, brickWidth, brickHeight);
+                    }
+                }
+            }
+
+            // 玉
             ctx.beginPath();
             ctx.arc(x, y, ballRadius, 0, Math.PI*2);
             ctx.fillStyle = "#0095DD";
             ctx.fill();
             ctx.closePath();
-        }
 
-        function drawPaddle() {
-            ctx.beginPath();
-            ctx.rect(paddleX, canvas.height - paddleHeight, paddleWidth, paddleHeight);
+            // パドル
             ctx.fillStyle = "#0095DD";
-            ctx.fill();
-            ctx.closePath();
-        }
+            ctx.fillRect(paddleX, canvas.height - paddleHeight, paddleWidth, paddleHeight);
 
-        function drawBricks() {
-            for(let c=0; c<brickColumnCount; c++) {
-                for(let r=0; r<brickRowCount; r++) {
-                    if(bricks[c][r].status == 1) {
-                        let brickX = (c * (brickWidth + brickPadding)) + brickOffsetLeft;
-                        let brickY = (r * (brickHeight + brickPadding)) + brickOffsetTop;
-                        bricks[c][r].x = brickX;
-                        bricks[c][r].y = brickY;
-                        ctx.beginPath();
-                        ctx.rect(brickX, brickY, brickWidth, brickHeight);
-                        ctx.fillStyle = "#ff4444";
-                        ctx.fill();
-                        ctx.closePath();
-                    }
-                }
-            }
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawBricks();
-            drawBall();
-            drawPaddle();
             collisionDetection();
 
-            // 壁との反射
             if(x + dx > canvas.width - ballRadius || x + dx < ballRadius) dx = -dx;
             if(y + dy < ballRadius) dy = -dy;
             else if(y + dy > canvas.height - ballRadius) {
                 if(x > paddleX && x < paddleX + paddleWidth) {
                     dy = -dy;
                 } else {
-                    alert("ゲームオーバー");
-                    document.location.reload();
+                    endGame("ゲームオーバー");
                     return;
                 }
             }
@@ -150,6 +160,7 @@
             requestAnimationFrame(draw);
         }
 
+        initGame();
         draw();
     </script>
 </body>
