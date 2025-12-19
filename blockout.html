@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>本格ブロック崩し</title>
+    <title>戦略スコア・ブロック崩し</title>
     <style>
         body { background: #222; color: #fff; text-align: center; font-family: sans-serif; overflow: hidden; touch-action: none; margin: 0; }
         canvas { background: #000; display: block; margin: 5px auto; border: 2px solid #fff; max-width: 95vw; max-height: 65vh; }
@@ -17,10 +17,10 @@
     <h2 style="margin: 5px;">BLOCK BREAKER</h2>
     <div class="info-panel">
         <div>スコア: <span id="score">0</span></div>
-        <div>残り時間: <span id="timer">60</span>s</div>
+        <div>残り時間: <span id="timer">180</span>s</div>
     </div>
     <canvas id="gameCanvas" width="400" height="500"></canvas>
-    <button id="restartBtn" onclick="resetGame()">リベンジする</button>
+    <button id="restartBtn" onclick="resetGame()">もう一度挑戦する</button>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
@@ -29,23 +29,21 @@
         const timerDisplay = document.getElementById("timer");
         const restartBtn = document.getElementById("restartBtn");
 
-        // --- ゲーム設定 ---
         let score = 0;
-        let timeLeft = 60; // 制限時間（秒）
+        let timeLeft = 180; // 制限時間を180秒に変更
         let gameTimer;
         let isGameOver = false;
 
         const ballRadius = 6;
         let x, y, dx, dy;
-        let baseSpeed = 3; // 初速度
+        let baseSpeed = 3; 
 
         const paddleHeight = 12;
         let paddleWidth = 60;
         let paddleX;
 
-        // ブロックの設定（数を増やしました）
-        const brickRowCount = 6;    // 縦6列
-        const brickColumnCount = 7; // 横7列
+        const brickRowCount = 6;    
+        const brickColumnCount = 7; 
         const brickWidth = 45;
         const brickHeight = 15;
         const brickPadding = 7;
@@ -53,10 +51,13 @@
         const brickOffsetLeft = 20;
 
         let bricks = [];
+        let totalBricks = brickRowCount * brickColumnCount;
+        let brokenBricks = 0;
 
         function initGame() {
             score = 0;
-            timeLeft = 60;
+            timeLeft = 180;
+            brokenBricks = 0;
             isGameOver = false;
             scoreDisplay.innerHTML = score;
             timerDisplay.innerHTML = timeLeft;
@@ -73,11 +74,11 @@
             for(let c=0; c<brickColumnCount; c++) {
                 bricks[c] = [];
                 for(let r=0; r<brickRowCount; r++) {
-                    bricks[c][r] = { x: 0, y: 0, status: 1 };
+                    // status=1は存在、pointsは上の行ほど高く設定
+                    bricks[c][r] = { x: 0, y: 0, status: 1, points: (6 - r) };
                 }
             }
 
-            // タイマー開始
             if(gameTimer) clearInterval(gameTimer);
             gameTimer = setInterval(() => {
                 if(!isGameOver) {
@@ -89,13 +90,11 @@
             }, 1000);
         }
 
-        // --- 操作系 ---
         function movePaddle(clientX) {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
             let relativeX = (clientX - rect.left) * scaleX;
             paddleX = relativeX - paddleWidth / 2;
-            // 画面外に出ないように制限
             if(paddleX < 0) paddleX = 0;
             if(paddleX + paddleWidth > canvas.width) paddleX = canvas.width - paddleWidth;
         }
@@ -109,7 +108,6 @@
             movePaddle(e.clientX);
         });
 
-        // --- メインロジック ---
         function collisionDetection() {
             for(let c=0; c<brickColumnCount; c++) {
                 for(let r=0; r<brickRowCount; r++) {
@@ -118,16 +116,19 @@
                         if(x > b.x && x < b.x + brickWidth && y > b.y && y < b.y + brickHeight) {
                             dy = -dy;
                             b.status = 0;
-                            score++;
+                            
+                            // 上の行ほど高い得点を加算
+                            score += b.points;
+                            brokenBricks++;
                             scoreDisplay.innerHTML = score;
 
-                            // 【加速ポイント】ブロックが壊れるたびに少しずつ速くする
-                            let speedUp = 1 + (score * 0.02); // 1個壊すごとに2%速くなる
+                            // 加速：壊した数に応じてスピードアップ
+                            let speedUp = 1 + (brokenBricks * 0.02); 
                             dx = (dx > 0 ? baseSpeed : -baseSpeed) * speedUp;
                             dy = (dy > 0 ? baseSpeed : -baseSpeed) * speedUp;
 
-                            if(score == brickRowCount * brickColumnCount) {
-                                endGame("全消しクリア！スコア: " + (score + timeLeft));
+                            if(brokenBricks == totalBricks) {
+                                endGame("パーフェクトクリア！");
                             }
                         }
                     }
@@ -138,12 +139,14 @@
         function endGame(msg) {
             isGameOver = true;
             clearInterval(gameTimer);
-            ctx.fillStyle = "rgba(0,0,0,0.7)";
+            ctx.fillStyle = "rgba(0,0,0,0.8)";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = "white";
-            ctx.font = "24px Bold sans-serif";
             ctx.textAlign = "center";
-            ctx.fillText(msg, canvas.width/2, canvas.height/2);
+            ctx.font = "22px Bold sans-serif";
+            ctx.fillText(msg, canvas.width/2, canvas.height/2 - 20);
+            ctx.font = "28px Bold sans-serif";
+            ctx.fillText("最終得点: " + score, canvas.width/2, canvas.height/2 + 30);
             restartBtn.style.display = "inline-block";
         }
 
@@ -157,7 +160,6 @@
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // ブロック
             for(let c=0; c<brickColumnCount; c++) {
                 for(let r=0; r<brickRowCount; r++) {
                     if(bricks[c][r].status == 1) {
@@ -165,27 +167,24 @@
                         let by = (r * (brickHeight + brickPadding)) + brickOffsetTop;
                         bricks[c][r].x = bx;
                         bricks[c][r].y = by;
-                        // 列によって色を変える
-                        ctx.fillStyle = `hsl(${r * 40}, 70%, 50%)`;
+                        // 虹色グラデーション
+                        ctx.fillStyle = `hsl(${r * 45}, 70%, 50%)`;
                         ctx.fillRect(bx, by, brickWidth, brickHeight);
                     }
                 }
             }
 
-            // 玉
             ctx.beginPath();
             ctx.arc(x, y, ballRadius, 0, Math.PI*2);
             ctx.fillStyle = "#fff";
             ctx.fill();
             ctx.closePath();
 
-            // パドル
             ctx.fillStyle = "#0095DD";
             ctx.fillRect(paddleX, canvas.height - paddleHeight, paddleWidth, paddleHeight);
 
             collisionDetection();
 
-            // 壁反射
             if(x + dx > canvas.width - ballRadius || x + dx < ballRadius) dx = -dx;
             if(y + dy < ballRadius) dy = -dy;
             else if(y + dy > canvas.height - ballRadius) {
