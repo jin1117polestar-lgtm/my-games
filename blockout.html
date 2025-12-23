@@ -3,25 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BLOCK BREAKER - STABLE VERSION</title>
+    <title>BLOCK BREAKER - ULTIMATE STABLE</title>
     <style>
-        html, body { 
-            background: #000; color: #fff; text-align: center; font-family: sans-serif; 
-            overflow: hidden; touch-action: none; margin: 0; width: 100%; height: 100%; 
-        }
+        html, body { background: #000; color: #fff; text-align: center; font-family: sans-serif; overflow: hidden; touch-action: none; margin: 0; width: 100%; height: 100%; }
         #game-container { display: flex; flex-direction: column; height: 100vh; }
-        .ui-top { height: 40px; display: flex; justify-content: space-around; align-items: center; background: #111; color: #0f0; font-size: 14px; }
-        #screen-area { position: relative; flex-grow: 1; width: 100%; overflow: hidden; }
-        canvas { background: #000; display: block; margin: 0 auto; width: 100%; height: 100%; object-fit: contain; }
-        
-        #touch-area { height: 30vh; width: 100%; background: #0a0a0a; display: flex; justify-content: center; align-items: center; border-top: 1px solid #333; }
-
-        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+        .ui-top { height: 40px; display: flex; justify-content: space-around; align-items: center; background: #111; color: #0f0; font-size: 14px; flex-shrink: 0; }
+        #screen-area { position: relative; flex-grow: 1; width: 100%; background: #000; }
+        canvas { display: block; margin: 0 auto; width: 100%; height: 100%; object-fit: contain; border: 1px solid #333; }
+        #touch-area { height: 25vh; width: 100%; background: #0a0a0a; display: flex; justify-content: center; align-items: center; border-top: 2px solid #333; flex-shrink: 0; }
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
         button { padding: 15px 40px; font-size: 18px; background: #28a745; color: white; border: none; border-radius: 50px; cursor: pointer; margin: 8px; font-weight: bold; min-width: 220px; }
-        
-        @keyframes flash { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; color: #ff0; } }
-        .new-record { color: #f0f; font-weight: bold; animation: flash 0.5s infinite; font-size: 20px; margin: 5px 0; display: none; }
-        .boss-hp-bar { width: 80%; height: 8px; background: #333; border: 1px solid #fff; margin: 10px auto; display: none; position: absolute; top: 10px; left: 10%; z-index: 10; }
+        .new-record { color: #f0f; font-weight: bold; animation: flash 0.5s infinite; font-size: 20px; margin: 5px 0; }
+        @keyframes flash { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .boss-hp-bar { width: 80%; height: 10px; background: #333; border: 1px solid #fff; position: absolute; top: 10px; left: 10%; z-index: 10; display: none; overflow: hidden; border-radius: 5px; }
         #boss-hp-fill { width: 100%; height: 100%; background: #f00; transition: width 0.1s; }
     </style>
 </head>
@@ -40,7 +34,7 @@
 
         <div id="start-screen" class="overlay">
             <h1 style="color:#0f0;">BLOCK BREAKER</h1>
-            <div id="record-box" style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 10px;">
+            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 10px;">
                 BEST SCORE: <span id="best-score">0</span><br>
                 BEST TIME: <span id="best-time">--:--</span>
             </div>
@@ -54,15 +48,15 @@
                 CURRENT SCORE: <span id="inter-score">0</span><br>
                 TIME LEFT: <span id="inter-time">0</span>
             </div>
-            <div id="inter-record-notice" class="new-record">NEW HIGH SCORE!</div>
-            <button id="next-btn" onclick="continueGame()">NEXT STAGE</button><br>
+            <div id="inter-record-notice" class="new-record" style="display:none">NEW HIGH SCORE!</div>
+            <button onclick="continueGame()">NEXT STAGE</button><br>
             <button onclick="location.reload()" style="background:#555;">BACK TO TITLE</button>
         </div>
 
         <div id="result-screen" class="overlay" style="display:none">
             <h2 id="result-msg">GAME OVER</h2>
             <div id="final-score-display" style="font-size:36px; color:#ff0; font-weight:bold;">0</div>
-            <div id="record-notice" class="new-record">NEW RECORD!</div>
+            <div id="record-notice" class="new-record" style="display:none">NEW RECORD!</div>
             <div id="final-stats" style="color:#aaa; margin: 15px 0;"></div>
             <button onclick="location.reload()">BACK TO TITLE</button>
         </div>
@@ -75,17 +69,21 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+// 定数
 const INITIAL_PADDLE_WIDTH = 60;
 const BASE_SPEED = 4.5;
-const ITEM_TIME = 600;
+const EFFECT_TIME = 600; // 10秒(60fps)
 
-let stage = 1, score = 0, timeLeft = 300, isGameOver = true, isPaused = false;
-let clearCalled = false; // クリア画面がすでに表示されているかどうかのフラグ
+// ゲーム状態管理
+let gameState = "TITLE"; // TITLE, PLAY, PAUSE, RESULT
+let stage = 1, score = 0, timeLeft = 300, clearCalled = false;
 let combo = 0, comboTimer = 0, shakeTime = 0, gameInterval;
 let paddleSizeTimer = 0;
-let balls = [], paddleX = 170, paddleWidth = INITIAL_PADDLE_WIDTH, currentTargetSpeed = BASE_SPEED;
-let bricks = [], items = [], boss = null, wallBricks = [], advanceY = 0;
+let paddleWidth = INITIAL_PADDLE_WIDTH, paddleX = 170;
+let currentTargetSpeed = BASE_SPEED;
+let balls = [], bricks = [], items = [], wallBricks = [], boss = null, advanceY = 0;
 
+// 記録の表示
 function updateRecordsDisplay() {
     const s = localStorage.getItem('bestScore') || 0;
     const t = localStorage.getItem('bestTime');
@@ -93,11 +91,12 @@ function updateRecordsDisplay() {
     document.getElementById('best-time').innerText = t ? formatTime(t) : "--:--";
 }
 
+// レコードリセット
 function resetRecords() {
-    if (prompt("パスワード：") === "1117") {
+    if (prompt("パスワードを入力(1117)：") === "1117") {
         localStorage.removeItem('bestScore'); localStorage.removeItem('bestTime');
-        updateRecordsDisplay(); alert("Reset OK");
-    }
+        updateRecordsDisplay(); alert("記録をリセットしました。");
+    } else { alert("パスワードが違います。"); }
 }
 
 function formatTime(sec) {
@@ -105,19 +104,22 @@ function formatTime(sec) {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
 }
 
+// ステージ初期化
 function initStage(n) {
     stage = n;
     clearCalled = false;
-    document.getElementById("stage-num").innerText = n;
     bricks = []; items = []; wallBricks = []; boss = null; advanceY = 0;
+    document.getElementById("stage-num").innerText = n;
     
     currentTargetSpeed = BASE_SPEED + (n * 0.5);
     balls = [{ x: 200, y: 400, dx: currentTargetSpeed * 0.7, dy: -currentTargetSpeed * 0.7, active: true }];
-    document.getElementById("boss-ui").style.display = n === 3 ? "block" : "none";
+    document.getElementById("boss-ui").style.display = (n === 3) ? "block" : "none";
     
-    if (n === 1) createBricks(5, 7, false);
-    else if (n === 2) {
+    if (n === 1) {
+        createBricks(5, 7, false);
+    } else if (n === 2) {
         createBricks(6, 8, true);
+        // 2ステージ目壁ブロック：サイズ調整済み
         for(let i=0; i<4; i++) wallBricks.push({x: i*100 + 40, y: 240, w: 40, h: 12});
     } else if (n === 3) {
         createBricks(4, 8, false);
@@ -128,47 +130,47 @@ function initStage(n) {
 function createBricks(rows, cols, hasHard) {
     for(let c=0; c<cols; c++) {
         bricks[c] = [];
-        for(let r=0; r<rows; r++) bricks[c][r] = { status: (hasHard && Math.random() < 0.2) ? 2 : 1, row: r };
+        for(let r=0; r<rows; r++) {
+            bricks[c][r] = { status: (hasHard && Math.random() < 0.2) ? 2 : 1, row: r };
+        }
     }
 }
 
-// コントロール
+// 操作
 let lastTouchX = null;
 window.addEventListener("touchstart", e => { lastTouchX = e.touches[0].clientX; }, {passive: false});
 window.addEventListener("touchmove", e => {
-    if (isGameOver || isPaused || lastTouchX === null) return;
-    paddleX += (e.touches[0].clientX - lastTouchX) * 1.8;
-    paddleX = Math.max(0, Math.min(canvas.width - paddleWidth, paddleX));
+    if (gameState !== "PLAY" || lastTouchX === null) return;
+    let delta = (e.touches[0].clientX - lastTouchX) * 1.8;
+    paddleX = Math.max(0, Math.min(canvas.width - paddleWidth, paddleX + delta));
     lastTouchX = e.touches[0].clientX;
     if (e.cancelable) e.preventDefault();
 }, {passive: false});
 window.addEventListener("touchend", () => { lastTouchX = null; });
 
 function startGame() {
+    gameState = "PLAY";
     document.getElementById("start-screen").style.display = "none";
-    paddleWidth = INITIAL_PADDLE_WIDTH; paddleSizeTimer = 0;
-    score = 0; timeLeft = 300; isGameOver = false; isPaused = false;
+    score = 0; timeLeft = 300; paddleWidth = INITIAL_PADDLE_WIDTH; paddleSizeTimer = 0;
     initStage(1);
     if(gameInterval) clearInterval(gameInterval);
-    gameInterval = setInterval(() => { 
-        if(!isGameOver && !isPaused) { 
-            timeLeft--; 
-            document.getElementById("timer").innerText = timeLeft; 
-            if(timeLeft <= 0) endGame(false); 
-        } 
+    gameInterval = setInterval(() => {
+        if(gameState === "PLAY") {
+            timeLeft--;
+            document.getElementById("timer").innerText = timeLeft;
+            if(timeLeft <= 0) endGame(false);
+        }
     }, 1000);
-    requestAnimationFrame(update);
+    requestAnimationFrame(gameLoop);
 }
 
 function showIntermission() {
-    if (clearCalled) return; // 連続呼び出し防止
-    clearCalled = true;
-    isPaused = true;
-    
+    gameState = "PAUSE";
     document.getElementById("intermission-screen").style.display = "flex";
     document.getElementById("inter-score").innerText = score;
     document.getElementById("inter-time").innerText = formatTime(timeLeft);
     
+    // 途中保存(ハイスコアのみ)
     const bestS = parseInt(localStorage.getItem('bestScore') || 0);
     if(score > bestS) {
         localStorage.setItem('bestScore', score);
@@ -179,131 +181,171 @@ function showIntermission() {
 function continueGame() {
     document.getElementById("intermission-screen").style.display = "none";
     document.getElementById("inter-record-notice").style.display = "none";
-    isPaused = false;
     initStage(stage + 1);
+    gameState = "PLAY";
+}
+
+function gameLoop() {
+    if (gameState === "RESULT") return;
+    if (gameState === "PLAY") {
+        update();
+        draw();
+    }
+    requestAnimationFrame(gameLoop);
 }
 
 function update() {
-    if(isGameOver || isPaused) return; 
-    
+    // アイテムタイマー
     if (paddleSizeTimer > 0) {
         paddleSizeTimer--;
         if (paddleSizeTimer <= 0) paddleWidth = INITIAL_PADDLE_WIDTH;
     }
-    if(comboTimer > 0) comboTimer--; else combo = 0;
-    if(stage === 3) advanceY += 0.07; if(advanceY > 185) endGame(false);
     
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if(shakeTime > 0) { ctx.save(); ctx.translate((Math.random()-0.5)*7, (Math.random()-0.5)*7); shakeTime--; }
-    
-    drawBricks(); drawWall(); drawBoss(); drawItems(); drawPaddle(); drawBalls();
-    if(combo > 1) { ctx.fillStyle = "#ff0"; ctx.font = "bold 20px sans-serif"; ctx.textAlign="right"; ctx.fillText(combo + " COMBO!", 380, 100); }
-    
-    if(shakeTime > 0) ctx.restore();
-    checkCollisions();
-    requestAnimationFrame(update);
-}
+    if (comboTimer > 0) comboTimer--; else combo = 0;
+    if (stage === 3) advanceY += 0.07;
+    if (advanceY > 185) endGame(false);
 
-function drawBricks() {
-    let bw = 42, bh = 15, pad = 5, offT = 50 + advanceY, offL = 30;
-    bricks.forEach((col, c) => {
-        col.forEach((b, r) => {
-            if(b.status > 0) {
-                b.x = c*(bw+pad)+offL; b.y = r*(bh+pad)+offT;
-                ctx.fillStyle = b.status === 2 ? "#888" : `hsl(${r*40}, 70%, 50%)`;
-                ctx.fillRect(b.x, b.y, bw, bh);
-            }
-        });
-    });
-}
-function drawWall() { ctx.fillStyle = "#666"; wallBricks.forEach(w => { ctx.fillRect(w.x, w.y, w.w, w.h); ctx.strokeStyle = "#999"; ctx.strokeRect(w.x, w.y, w.w, w.h); }); }
-function drawBoss() { 
-    if(!boss) return; let bx = boss.x, by = boss.y + advanceY/2;
-    ctx.fillStyle = "#404"; ctx.fillRect(bx, by, boss.w, boss.h); 
-    ctx.strokeStyle = "#f0f"; ctx.lineWidth = 2; ctx.strokeRect(bx, by, boss.w, boss.h);
-    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(bx + boss.w/2, by + boss.h/2, 12, 0, Math.PI*2); ctx.fill();
-    document.getElementById("boss-hp-fill").style.width = (boss.hp/boss.maxHp*100) + "%";
-}
-function drawItems() {
-    items.forEach((it, i) => {
-        it.y += 2.5;
-        ctx.fillStyle = it.type === 'wide' ? "#0af" : it.type === 'short' ? "#f00" : "#ff0";
-        ctx.beginPath(); ctx.arc(it.x, it.y, 11, 0, Math.PI*2); ctx.fill();
-        if(it.y > canvas.height) items.splice(i,1);
-        if(it.y > canvas.height-22 && it.x > paddleX && it.x < paddleX+paddleWidth) {
-            if(it.type === 'wide') { paddleWidth = 110; paddleSizeTimer = ITEM_TIME; }
-            if(it.type === 'short') { paddleWidth = 35; paddleSizeTimer = ITEM_TIME; }
-            if(it.type === 'multi') { balls.filter(b=>b.active).forEach(b => balls.push({x:b.x, y:b.y, dx:-b.dx, dy:b.dy, active:true})); }
-            items.splice(i,1);
-        }
-    });
-}
-function drawPaddle() { 
-    ctx.fillStyle = (paddleWidth > INITIAL_PADDLE_WIDTH) ? "#0ff" : (paddleWidth < INITIAL_PADDLE_WIDTH) ? "#f55" : "#0f0";
-    ctx.fillRect(paddleX, canvas.height - 22, paddleWidth, 12);
-    if(paddleSizeTimer > 0) { ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.fillRect(paddleX, canvas.height - 10, paddleWidth * (paddleSizeTimer/ITEM_TIME), 2); }
-}
-function drawBalls() {
+    // ボール移動
     balls.forEach(b => {
         if(!b.active) return;
-        ctx.beginPath(); ctx.arc(b.x, b.y, 7, 0, Math.PI*2); ctx.fillStyle = "#fff"; ctx.fill();
-        if (b.x < 7 || b.x > canvas.width - 7) b.dx *= -1;
-        if (b.y < 7) b.dy *= -1;
-        if(b.y > canvas.height - 27 && b.y < canvas.height - 5 && b.x > paddleX && b.x < paddleX + paddleWidth) {
-            let hitPos = (b.x - (paddleX + paddleWidth / 2)) / (paddleWidth / 2);
-            b.dx = currentTargetSpeed * Math.sin(hitPos * (Math.PI / 3));
-            b.dy = -currentTargetSpeed * Math.cos(hitPos * (Math.PI / 3));
-            b.y = canvas.height - 28; combo = 0;
-        }
-        if(b.y > canvas.height + 20) { b.active = false; if(balls.filter(a=>a.active).length === 0) endGame(false); }
         b.x += b.dx; b.y += b.dy;
-    });
-}
 
-function checkCollisions() {
-    if(isPaused || clearCalled) return; 
-    balls.forEach(ball => {
-        if(!ball.active) return;
-        bricks.forEach(col => col.forEach(b => {
-            if(b.status > 0 && ball.x > b.x-5 && ball.x < b.x+47 && ball.y > b.y-5 && ball.y < b.y+20) {
-                ball.dy *= -1; b.status--;
-                if(b.status === 0) { 
-                    combo++; comboTimer = 60; score += (6 - b.row) * 10 * combo; 
+        // 壁反射
+        if (b.x < 7 || b.x > 393) b.dx *= -1;
+        if (b.y < 7) b.dy *= -1;
+
+        // パドル反射
+        if (b.y > 473 && b.y < 495 && b.x > paddleX && b.x < paddleX + paddleWidth) {
+            let hit = (b.x - (paddleX + paddleWidth/2)) / (paddleWidth/2);
+            b.dx = currentTargetSpeed * Math.sin(hit * 1.1);
+            b.dy = -currentTargetSpeed * Math.cos(hit * 1.1);
+            b.y = 472; combo = 0;
+        }
+
+        // 落下
+        if (b.y > 520) {
+            b.active = false;
+            if (balls.filter(a => a.active).length === 0) endGame(false);
+        }
+
+        // ブロック衝突
+        bricks.forEach(col => col.forEach(br => {
+            if (br.status > 0 && b.x > br.x && b.x < br.x+42 && b.y > br.y && b.y < br.y+15) {
+                b.dy *= -1; br.status--;
+                if (br.status === 0) {
+                    combo++; comboTimer = 60; score += (6 - br.row) * 10 * combo;
                     document.getElementById("score").innerText = score;
-                    if(Math.random() < 0.12) items.push({x: b.x+21, y: b.y, type: Math.random() < 0.4 ? 'multi' : Math.random() < 0.7 ? 'wide' : 'short'});
+                    if(Math.random() < 0.15) spawnItem(br.x+21, br.y);
                     currentTargetSpeed += 0.05;
                 }
             }
         }));
+
+        // ステージ2 壁衝突
         wallBricks.forEach(w => {
-            if(ball.x > w.x - 5 && ball.x < w.x + w.w + 5 && ball.y > w.y - 5 && ball.y < w.y + w.h + 5) {
-                if (Math.abs(ball.x - (w.x + w.w/2)) > Math.abs(ball.y - (w.y + w.h/2))) b.dx *= -1; else ball.dy *= -1;
+            if (b.x > w.x-5 && b.x < w.x+w.w+5 && b.y > w.y-5 && b.y < w.y+w.h+5) {
+                if (Math.abs(b.x - (w.x + w.w/2)) > Math.abs(b.y - (w.y + w.h/2))) b.dx *= -1; else b.dy *= -1;
             }
         });
-        if(boss) {
+
+        // ボス衝突
+        if (boss) {
             let bx = boss.x, by = boss.y + advanceY/2;
-            if(ball.x > bx && ball.x < bx + boss.w && ball.y > by && ball.y < by + boss.h) {
-                let distToCore = Math.sqrt(Math.pow(ball.x - (bx + boss.w/2), 2) + Math.pow(ball.y - (by + boss.h/2), 2));
-                boss.hp -= (distToCore < 20) ? 3 : 1; shakeTime = (distToCore < 20) ? 10 : 4;
-                ball.dy *= -1; ball.y = ball.y < by + boss.h/2 ? by - 8 : by + boss.h + 8;
-                document.getElementById("score").innerText = score;
-                if(boss.hp <= 0) endGame(true);
+            if (b.x > bx && b.x < bx + boss.w && b.y > by && b.y < by + boss.h) {
+                let dist = Math.sqrt((b.x-(bx+75))**2 + (b.y-(by+25))**2);
+                boss.hp -= (dist < 20) ? 3 : 1; shakeTime = 8;
+                b.dy *= -1; b.y = (b.y < by+25) ? by-8 : by+boss.h+8;
+                if (boss.hp <= 0) endGame(true);
             }
         }
     });
-    // クリア判定
-    if(!boss && bricks.length > 0 && bricks.flat().every(b => b.status === 0)) showIntermission();
+
+    // アイテム移動と取得
+    items.forEach((it, i) => {
+        it.y += 2.5;
+        if (it.y > 475 && it.y < 500 && it.x > paddleX && it.x < paddleX + paddleWidth) {
+            if (it.type === 'L') { paddleWidth = 110; paddleSizeTimer = EFFECT_TIME; }
+            if (it.type === 'S') { paddleWidth = 35; paddleSizeTimer = EFFECT_TIME; }
+            if (it.type === 'M') { balls.filter(b=>b.active).forEach(b => balls.push({x:b.x, y:b.y, dx:-b.dx, dy:b.dy, active:true})); }
+            items.splice(i, 1);
+        } else if (it.y > 505) items.splice(i, 1);
+    });
+
+    // クリア判定 (二重呼び出し防止)
+    if (!boss && !clearCalled && bricks.flat().every(b => b.status === 0)) {
+        clearCalled = true;
+        if (stage < 3) showIntermission(); else endGame(true);
+    }
+}
+
+function spawnItem(x, y) {
+    const types = ['L', 'S', 'M'];
+    items.push({ x, y, type: types[Math.floor(Math.random()*types.length)] });
+}
+
+function draw() {
+    ctx.clearRect(0, 0, 400, 500);
+    if(shakeTime > 0) { ctx.save(); ctx.translate((Math.random()-0.5)*7, (Math.random()-0.5)*7); shakeTime--; }
+
+    // ブロック
+    let bw = 42, bh = 15, pad = 5, offT = 50 + advanceY, offL = 30;
+    bricks.forEach((col, c) => col.forEach((b, r) => {
+        if(b.status > 0) {
+            b.x = c*(bw+pad)+offL; b.y = r*(bh+pad)+offT;
+            ctx.fillStyle = b.status === 2 ? "#888" : `hsl(${r*40}, 70%, 50%)`;
+            ctx.fillRect(b.x, b.y, bw, bh);
+        }
+    }));
+
+    // 壁
+    ctx.fillStyle = "#666";
+    wallBricks.forEach(w => { ctx.fillRect(w.x, w.y, w.w, w.h); ctx.strokeStyle = "#999"; ctx.strokeRect(w.x, w.y, w.w, w.h); });
+
+    // ボス
+    if (boss) {
+        let bx = boss.x, by = boss.y + advanceY/2;
+        ctx.fillStyle = "#404"; ctx.fillRect(bx, by, boss.w, boss.h);
+        ctx.strokeStyle = "#f0f"; ctx.strokeRect(bx, by, boss.w, boss.h);
+        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(bx+75, by+25, 12, 0, Math.PI*2); ctx.fill();
+        document.getElementById("boss-hp-fill").style.width = (boss.hp/boss.maxHp*100) + "%";
+    }
+
+    // アイテム (アルファベット表示復活)
+    items.forEach(it => {
+        ctx.fillStyle = it.type === 'L' ? "#0af" : it.type === 'S' ? "#f00" : "#ff0";
+        ctx.beginPath(); ctx.arc(it.x, it.y, 11, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#000"; ctx.font = "bold 14px Arial"; ctx.textAlign = "center";
+        ctx.fillText(it.type, it.x, it.y + 5);
+    });
+
+    // パドル & ゲージ
+    ctx.fillStyle = (paddleWidth > 60) ? "#0ff" : (paddleWidth < 60) ? "#f55" : "#0f0";
+    ctx.fillRect(paddleX, 478, paddleWidth, 12);
+    if (paddleSizeTimer > 0) {
+        ctx.fillStyle = "rgba(255,255,255,0.4)";
+        ctx.fillRect(paddleX, 492, paddleWidth * (paddleSizeTimer/EFFECT_TIME), 3);
+    }
+
+    // ボール
+    ctx.fillStyle = "#fff";
+    balls.forEach(b => { if(b.active) { ctx.beginPath(); ctx.arc(b.x, b.y, 7, 0, Math.PI*2); ctx.fill(); } });
+
+    if(shakeTime > 0) ctx.restore();
 }
 
 function endGame(win) {
-    isGameOver = true; clearInterval(gameInterval);
+    gameState = "RESULT";
+    clearInterval(gameInterval);
     document.getElementById("result-screen").style.display = "flex";
     document.getElementById("result-msg").innerText = win ? "ALL STAGES CLEAR!" : "GAME OVER";
     document.getElementById("final-score-display").innerText = score;
+    
     const timeSpent = 300 - timeLeft;
+    document.getElementById("final-stats").innerHTML = `STAGE: ${stage} / TIME: ${formatTime(timeSpent)}`;
+    
+    let isNew = false;
     const bestS = parseInt(localStorage.getItem('bestScore') || 0);
     const bestT = parseInt(localStorage.getItem('bestTime') || 9999);
-    let isNew = false;
     if(score > bestS) { localStorage.setItem('bestScore', score); isNew = true; }
     if(win && timeSpent < bestT) { localStorage.setItem('bestTime', timeSpent); isNew = true; }
     if(isNew) document.getElementById("record-notice").style.display = "block";
