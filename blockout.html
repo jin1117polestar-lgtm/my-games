@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>BLOCK BREAKER TRILOGY - FINAL FIXED</title>
+    <title>BLOCK BREAKER TRILOGY - PRO CONTROL</title>
     <style>
         body { background: #000; color: #fff; text-align: center; font-family: 'Arial', sans-serif; overflow: hidden; touch-action: none; margin: 0; }
         canvas { background: #000; display: block; margin: 0 auto; border: 2px solid #333; max-width: 100vw; max-height: 75vh; }
@@ -33,7 +33,7 @@
 
     <div id="start-screen" class="overlay">
         <h1 style="color:#0f0; margin-bottom:5px;">BLOCK BREAKER</h1>
-        <p style="font-size:12px; margin-bottom:20px;">TRILOGY EDITION</p>
+        <p style="font-size:12px; margin-bottom:20px;">ANYWHERE CONTROL VER.</p>
         <div class="stats">
             【RECORD】<br>
             BEST SCORE: <span id="best-score">0</span><br>
@@ -55,7 +55,6 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// --- ゲーム管理 ---
 let stage = 1;
 let score = 0;
 let timeLeft = 300;
@@ -65,13 +64,12 @@ let comboTimer = 0;
 let shakeTime = 0;
 let gameInterval;
 
-// 物体
 let balls = [];
 let paddleX = 170;
 let paddleWidth = 60;
 const paddleHeight = 12;
-const baseBallSpeed = 3.8;
-let currentBallSpeed = baseBallSpeed;
+const initialSpeed = 4.5; // 初速度
+let currentTargetSpeed = initialSpeed;
 
 let bricks = [];
 let items = [];
@@ -95,16 +93,19 @@ function initStage(n) {
     stage = n;
     document.getElementById("stage-num").innerText = n;
     bricks = []; items = []; wallBricks = []; boss = null; advanceY = 0;
-    currentBallSpeed = baseBallSpeed + (n * 0.4);
+    currentTargetSpeed = initialSpeed + (n * 0.5);
     
-    // 初期の玉
-    balls = [{ x: 200, y: 400, dx: currentBallSpeed * (Math.random() > 0.5 ? 1 : -1), dy: -currentBallSpeed, active: true }];
+    balls = [{
+        x: 200, y: 400, 
+        dx: currentTargetSpeed * (Math.random() > 0.5 ? 1 : -1) * 0.7, 
+        dy: -currentTargetSpeed * 0.7, 
+        active: true
+    }];
     
     document.getElementById("boss-ui").style.display = n === 3 ? "block" : "none";
 
-    if (n === 1) {
-        createBricks(5, 7, false);
-    } else if (n === 2) {
+    if (n === 1) createBricks(5, 7, false);
+    else if (n === 2) {
         createBricks(6, 8, true);
         for(let i=0; i<5; i++) wallBricks.push({x: i*80 + 20, y: 250, w: 40, h: 10});
     } else if (n === 3) {
@@ -123,32 +124,35 @@ function createBricks(rows, cols, hasHard) {
     }
 }
 
-// --- 操作 (相対移動) ---
+// --- どこでも操作 (Touch Anywhere Control) ---
 let lastTouchX = null;
-canvas.addEventListener("touchstart", e => { lastTouchX = e.touches[0].clientX; });
-canvas.addEventListener("touchmove", e => {
-    if (lastTouchX === null) return;
+window.addEventListener("touchstart", e => { 
+    lastTouchX = e.touches[0].clientX; 
+}, {passive: false});
+
+window.addEventListener("touchmove", e => {
+    if (lastTouchX === null || isGameOver) return;
     let deltaX = e.touches[0].clientX - lastTouchX;
-    paddleX += deltaX * 1.6; 
+    paddleX += deltaX * 1.5; // 移動感度
     paddleX = Math.max(0, Math.min(canvas.width - paddleWidth, paddleX));
     lastTouchX = e.touches[0].clientX;
-    e.preventDefault();
+    e.preventDefault(); 
 }, {passive: false});
-canvas.addEventListener("touchend", () => { lastTouchX = null; });
+
+window.addEventListener("touchend", () => { lastTouchX = null; });
 
 function startGame() {
     document.getElementById("start-screen").style.display = "none";
     document.getElementById("result-screen").style.display = "none";
     score = 0; timeLeft = 300; isGameOver = false;
+    document.getElementById("score").innerText = score;
     initStage(1);
     if(gameInterval) clearInterval(gameInterval);
     gameInterval = setInterval(timerTick, 1000);
     requestAnimationFrame(update);
 }
 
-function restartGame() {
-    startGame();
-}
+function restartGame() { startGame(); }
 
 function timerTick() {
     if(!isGameOver) {
@@ -226,7 +230,9 @@ function drawItems() {
             if(it.type === 'short') paddleWidth = Math.max(30, paddleWidth-15);
             if(it.type === 'multi') {
                 let activeBalls = balls.filter(b=>b.active);
-                activeBalls.forEach(b => balls.push({x:b.x, y:b.y, dx:-b.dx, dy:b.dy, active:true}));
+                activeBalls.forEach(b => {
+                    balls.push({x:b.x, y:b.y, dx:-b.dx, dy:b.dy, active:true});
+                });
             }
             items.splice(i,1);
         }
@@ -244,26 +250,24 @@ function drawBalls() {
         if(!b.active) return;
         ctx.beginPath(); ctx.arc(b.x, b.y, ballR, 0, Math.PI*2); ctx.fillStyle = "#fff"; ctx.fill();
         
-        // --- 壁反射ロジック (スタック完全防止) ---
-        if (b.x < ballR) { 
-            b.dx = Math.abs(b.dx); 
-            b.x = ballR; 
-        } else if (b.x > canvas.width - ballR) { 
-            b.dx = -Math.abs(b.dx); 
-            b.x = canvas.width - ballR; 
-        }
+        // 壁反射
+        if (b.x < ballR) { b.dx = Math.abs(b.dx); b.x = ballR; }
+        else if (b.x > canvas.width - ballR) { b.dx = -Math.abs(b.dx); b.x = canvas.width - ballR; }
         
-        if (b.y < ballR) { 
-            b.dy = Math.abs(b.dy); 
-            b.y = ballR; 
-            if(Math.abs(b.dx) < 0.3) b.dx = (Math.random()-0.5)*2;
-        }
+        if (b.y < ballR) { b.dy = Math.abs(b.dy); b.y = ballR; }
 
-        // パドル反射
+        // パドル反射（重要：ここで速度を再計算して一定に保つ）
         if(b.y > canvas.height - paddleHeight - 15 && b.y < canvas.height - 5 && b.x > paddleX && b.x < paddleX + paddleWidth) {
-            b.dy = -Math.abs(b.dy);
+            let hitPos = (b.x - (paddleX + paddleWidth / 2)) / (paddleWidth / 2); // -1.0(左端) ～ 1.0(右端)
+            
+            // 反射角を計算（最大60度くらいまで）
+            let angle = hitPos * (Math.PI / 3); 
+            
+            // 現在のターゲット速度を維持したまま、dxとdyに分解
+            b.dx = currentTargetSpeed * Math.sin(angle);
+            b.dy = -currentTargetSpeed * Math.cos(angle);
+            
             b.y = canvas.height - paddleHeight - 16; // めり込み防止
-            b.dx = (b.x - (paddleX + paddleWidth / 2)) * 0.25;
             combo = 0;
         }
 
@@ -290,7 +294,12 @@ function checkCollisions() {
                         let type = r < 0.4 ? 'multi' : r < 0.7 ? 'wide' : 'short';
                         items.push({x: b.x+21, y: b.y, type: type});
                     }
-                    ball.dx *= 1.005; ball.dy *= 1.005;
+                    // 少しずつ加速（currentTargetSpeed自体を上げる）
+                    currentTargetSpeed += 0.05;
+                    // 現在の速度ベクトルもスケーリング
+                    let mag = Math.sqrt(ball.dx*ball.dx + ball.dy*ball.dy);
+                    ball.dx = (ball.dx / mag) * currentTargetSpeed;
+                    ball.dy = (ball.dy / mag) * currentTargetSpeed;
                 }
             }
         }));
