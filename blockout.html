@@ -3,29 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>BLOCK BREAKER - TIMED ITEMS</title>
+    <title>BLOCK BREAKER - STABLE VERSION</title>
     <style>
         html, body { 
             background: #000; color: #fff; text-align: center; font-family: sans-serif; 
             overflow: hidden; touch-action: none; margin: 0; width: 100%; height: 100%; 
         }
         #game-container { display: flex; flex-direction: column; height: 100vh; }
-        .ui-top { height: 40px; display: flex; justify-content: space-around; align-items: center; background: #111; color: #0f0; flex-shrink: 0; font-size: 14px; }
-        #screen-area { position: relative; flex-shrink: 0; height: 60vh; width: 100%; }
-        canvas { background: #000; display: block; margin: 0 auto; border: 2px solid #333; width: 100%; height: 100%; object-fit: contain; }
+        .ui-top { height: 40px; display: flex; justify-content: space-around; align-items: center; background: #111; color: #0f0; font-size: 14px; }
+        #screen-area { position: relative; flex-grow: 1; width: 100%; overflow: hidden; }
+        canvas { background: #000; display: block; margin: 0 auto; width: 100%; height: 100%; object-fit: contain; }
         
-        #touch-area { flex-grow: 1; width: 100%; background: #0a0a0a; display: flex; justify-content: center; align-items: center; border-top: 1px solid #333; }
+        #touch-area { height: 30vh; width: 100%; background: #0a0a0a; display: flex; justify-content: center; align-items: center; border-top: 1px solid #333; }
 
-        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
         button { padding: 15px 40px; font-size: 18px; background: #28a745; color: white; border: none; border-radius: 50px; cursor: pointer; margin: 8px; font-weight: bold; min-width: 220px; }
-        .btn-reset { background: #444; font-size: 12px; padding: 8px 20px; opacity: 0.7; min-width: auto; }
         
         @keyframes flash { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; color: #ff0; } }
         .new-record { color: #f0f; font-weight: bold; animation: flash 0.5s infinite; font-size: 20px; margin: 5px 0; display: none; }
-
-        .boss-hp-bar { width: 80%; height: 8px; background: #333; border: 1px solid #fff; margin: 5px auto; display: none; overflow: hidden; border-radius: 4px; }
-        #boss-hp-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #f00, #ff7e7e); transition: width 0.1s; }
+        .boss-hp-bar { width: 80%; height: 8px; background: #333; border: 1px solid #fff; margin: 10px auto; display: none; position: absolute; top: 10px; left: 10%; z-index: 10; }
+        #boss-hp-fill { width: 100%; height: 100%; background: #f00; transition: width 0.1s; }
     </style>
 </head>
 <body>
@@ -42,23 +39,23 @@
         <canvas id="gameCanvas" width="400" height="500"></canvas>
 
         <div id="start-screen" class="overlay">
-            <h1 style="color:#0f0; margin-bottom:5px;">BLOCK BREAKER</h1>
-            <div id="record-box" style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 10px; min-width: 200px;">
+            <h1 style="color:#0f0;">BLOCK BREAKER</h1>
+            <div id="record-box" style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 10px;">
                 BEST SCORE: <span id="best-score">0</span><br>
                 BEST TIME: <span id="best-time">--:--</span>
             </div>
             <button onclick="startGame()">GAME START</button><br>
-            <button class="btn-reset" onclick="resetRecords()">RESET RECORDS</button>
+            <button style="background:#444; font-size:12px; min-width:120px;" onclick="resetRecords()">RESET RECORDS</button>
         </div>
 
         <div id="intermission-screen" class="overlay" style="display:none">
             <h2 style="color:#0f0;">STAGE CLEAR!</h2>
-            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 15px; min-width: 200px;">
+            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
                 CURRENT SCORE: <span id="inter-score">0</span><br>
                 TIME LEFT: <span id="inter-time">0</span>
             </div>
             <div id="inter-record-notice" class="new-record">NEW HIGH SCORE!</div>
-            <button onclick="continueGame()">NEXT STAGE</button><br>
+            <button id="next-btn" onclick="continueGame()">NEXT STAGE</button><br>
             <button onclick="location.reload()" style="background:#555;">BACK TO TITLE</button>
         </div>
 
@@ -80,11 +77,12 @@ const ctx = canvas.getContext("2d");
 
 const INITIAL_PADDLE_WIDTH = 60;
 const BASE_SPEED = 4.5;
-const ITEM_EFFECT_TIME = 600; // 10秒(60fps)
+const ITEM_TIME = 600;
 
 let stage = 1, score = 0, timeLeft = 300, isGameOver = true, isPaused = false;
+let clearCalled = false; // クリア画面がすでに表示されているかどうかのフラグ
 let combo = 0, comboTimer = 0, shakeTime = 0, gameInterval;
-let paddleSizeTimer = 0; // パドルの効果時間タイマー
+let paddleSizeTimer = 0;
 let balls = [], paddleX = 170, paddleWidth = INITIAL_PADDLE_WIDTH, currentTargetSpeed = BASE_SPEED;
 let bricks = [], items = [], boss = null, wallBricks = [], advanceY = 0;
 
@@ -96,11 +94,10 @@ function updateRecordsDisplay() {
 }
 
 function resetRecords() {
-    const pw = prompt("パスワードを入力してください：");
-    if (pw === "1117") {
+    if (prompt("パスワード：") === "1117") {
         localStorage.removeItem('bestScore'); localStorage.removeItem('bestTime');
-        alert("記録をリセットしました。"); updateRecordsDisplay();
-    } else if (pw !== null) alert("パスワードが違います。");
+        updateRecordsDisplay(); alert("Reset OK");
+    }
 }
 
 function formatTime(sec) {
@@ -110,6 +107,7 @@ function formatTime(sec) {
 
 function initStage(n) {
     stage = n;
+    clearCalled = false;
     document.getElementById("stage-num").innerText = n;
     bricks = []; items = []; wallBricks = []; boss = null; advanceY = 0;
     
@@ -130,16 +128,16 @@ function initStage(n) {
 function createBricks(rows, cols, hasHard) {
     for(let c=0; c<cols; c++) {
         bricks[c] = [];
-        for(let r=0; r<rows; r++) bricks[c][r] = { x:0, y:0, status: (hasHard && Math.random() < 0.2) ? 2 : 1, row: r };
+        for(let r=0; r<rows; r++) bricks[c][r] = { status: (hasHard && Math.random() < 0.2) ? 2 : 1, row: r };
     }
 }
 
+// コントロール
 let lastTouchX = null;
 window.addEventListener("touchstart", e => { lastTouchX = e.touches[0].clientX; }, {passive: false});
 window.addEventListener("touchmove", e => {
     if (isGameOver || isPaused || lastTouchX === null) return;
-    let deltaX = e.touches[0].clientX - lastTouchX;
-    paddleX += deltaX * 1.8;
+    paddleX += (e.touches[0].clientX - lastTouchX) * 1.8;
     paddleX = Math.max(0, Math.min(canvas.width - paddleWidth, paddleX));
     lastTouchX = e.touches[0].clientX;
     if (e.cancelable) e.preventDefault();
@@ -148,9 +146,7 @@ window.addEventListener("touchend", () => { lastTouchX = null; });
 
 function startGame() {
     document.getElementById("start-screen").style.display = "none";
-    document.getElementById("result-screen").style.display = "none";
-    paddleWidth = INITIAL_PADDLE_WIDTH;
-    paddleSizeTimer = 0;
+    paddleWidth = INITIAL_PADDLE_WIDTH; paddleSizeTimer = 0;
     score = 0; timeLeft = 300; isGameOver = false; isPaused = false;
     initStage(1);
     if(gameInterval) clearInterval(gameInterval);
@@ -165,11 +161,14 @@ function startGame() {
 }
 
 function showIntermission() {
+    if (clearCalled) return; // 連続呼び出し防止
+    clearCalled = true;
     isPaused = true;
-    balls.forEach(b => b.active = false);
+    
     document.getElementById("intermission-screen").style.display = "flex";
     document.getElementById("inter-score").innerText = score;
     document.getElementById("inter-time").innerText = formatTime(timeLeft);
+    
     const bestS = parseInt(localStorage.getItem('bestScore') || 0);
     if(score > bestS) {
         localStorage.setItem('bestScore', score);
@@ -187,22 +186,20 @@ function continueGame() {
 function update() {
     if(isGameOver || isPaused) return; 
     
-    // パドルタイマーの処理
     if (paddleSizeTimer > 0) {
         paddleSizeTimer--;
-        if (paddleSizeTimer <= 0) {
-            paddleWidth = INITIAL_PADDLE_WIDTH; // 時間切れで元に戻る
-        }
+        if (paddleSizeTimer <= 0) paddleWidth = INITIAL_PADDLE_WIDTH;
     }
-
     if(comboTimer > 0) comboTimer--; else combo = 0;
     if(stage === 3) advanceY += 0.07; if(advanceY > 185) endGame(false);
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if(shakeTime > 0) { ctx.save(); ctx.translate((Math.random()-0.5)*7, (Math.random()-0.5)*7); shakeTime--; }
-    drawBricks(); drawWall(); drawBoss(); drawItems(); drawPaddle(); drawBalls(); drawCombo();
-    if(shakeTime > 0) ctx.restore();
     
+    drawBricks(); drawWall(); drawBoss(); drawItems(); drawPaddle(); drawBalls();
+    if(combo > 1) { ctx.fillStyle = "#ff0"; ctx.font = "bold 20px sans-serif"; ctx.textAlign="right"; ctx.fillText(combo + " COMBO!", 380, 100); }
+    
+    if(shakeTime > 0) ctx.restore();
     checkCollisions();
     requestAnimationFrame(update);
 }
@@ -220,55 +217,42 @@ function drawBricks() {
     });
 }
 function drawWall() { ctx.fillStyle = "#666"; wallBricks.forEach(w => { ctx.fillRect(w.x, w.y, w.w, w.h); ctx.strokeStyle = "#999"; ctx.strokeRect(w.x, w.y, w.w, w.h); }); }
-function drawBoss() { if(!boss) return; let bx = boss.x, by = boss.y + advanceY/2; ctx.fillStyle = "#404"; ctx.fillRect(bx, by, boss.w, boss.h); ctx.strokeStyle = "#f0f"; ctx.lineWidth = 2; ctx.strokeRect(bx, by, boss.w, boss.h); ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(bx + boss.w/2, by + boss.h/2, 12, 0, Math.PI*2); ctx.fill(); document.getElementById("boss-hp-fill").style.width = (boss.hp/boss.maxHp*100) + "%"; }
-
+function drawBoss() { 
+    if(!boss) return; let bx = boss.x, by = boss.y + advanceY/2;
+    ctx.fillStyle = "#404"; ctx.fillRect(bx, by, boss.w, boss.h); 
+    ctx.strokeStyle = "#f0f"; ctx.lineWidth = 2; ctx.strokeRect(bx, by, boss.w, boss.h);
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(bx + boss.w/2, by + boss.h/2, 12, 0, Math.PI*2); ctx.fill();
+    document.getElementById("boss-hp-fill").style.width = (boss.hp/boss.maxHp*100) + "%";
+}
 function drawItems() {
     items.forEach((it, i) => {
         it.y += 2.5;
         ctx.fillStyle = it.type === 'wide' ? "#0af" : it.type === 'short' ? "#f00" : "#ff0";
         ctx.beginPath(); ctx.arc(it.x, it.y, 11, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = "#000"; ctx.font = "bold 14px sans-serif"; ctx.textAlign = "center";
-        ctx.fillText(it.type === 'wide' ? "L" : it.type === 'short' ? "S" : "M", it.x, it.y + 5);
         if(it.y > canvas.height) items.splice(i,1);
         if(it.y > canvas.height-22 && it.x > paddleX && it.x < paddleX+paddleWidth) {
-            if(it.type === 'wide') {
-                paddleWidth = 110; // 固定の「長い」サイズ
-                paddleSizeTimer = ITEM_EFFECT_TIME; // 10秒セット
-            }
-            if(it.type === 'short') {
-                paddleWidth = 35; // 固定の「短い」サイズ
-                paddleSizeTimer = ITEM_EFFECT_TIME; // 10秒セット
-            }
-            if(it.type === 'multi') { 
-                let activeBalls = balls.filter(b=>b.active); 
-                activeBalls.forEach(b => balls.push({x:b.x, y:b.y, dx:-b.dx, dy:b.dy, active:true}));
-            }
+            if(it.type === 'wide') { paddleWidth = 110; paddleSizeTimer = ITEM_TIME; }
+            if(it.type === 'short') { paddleWidth = 35; paddleSizeTimer = ITEM_TIME; }
+            if(it.type === 'multi') { balls.filter(b=>b.active).forEach(b => balls.push({x:b.x, y:b.y, dx:-b.dx, dy:b.dy, active:true})); }
             items.splice(i,1);
         }
     });
 }
-
 function drawPaddle() { 
     ctx.fillStyle = (paddleWidth > INITIAL_PADDLE_WIDTH) ? "#0ff" : (paddleWidth < INITIAL_PADDLE_WIDTH) ? "#f55" : "#0f0";
     ctx.fillRect(paddleX, canvas.height - 22, paddleWidth, 12);
-    // 効果時間中はパドルにうっすらタイマーを表示（オプション）
-    if(paddleSizeTimer > 0) {
-        ctx.fillStyle = "rgba(255,255,255,0.3)";
-        ctx.fillRect(paddleX, canvas.height - 12, paddleWidth * (paddleSizeTimer/ITEM_EFFECT_TIME), 2);
-    }
+    if(paddleSizeTimer > 0) { ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.fillRect(paddleX, canvas.height - 10, paddleWidth * (paddleSizeTimer/ITEM_TIME), 2); }
 }
-
 function drawBalls() {
-    const ballR = 7;
     balls.forEach(b => {
         if(!b.active) return;
-        ctx.beginPath(); ctx.arc(b.x, b.y, ballR, 0, Math.PI*2); ctx.fillStyle = "#fff"; ctx.fill();
-        if (b.x < ballR) { b.dx = Math.abs(b.dx); b.x = ballR; } else if (b.x > canvas.width - ballR) { b.dx = -Math.abs(b.dx); b.x = canvas.width - ballR; }
-        if (b.y < ballR) { b.dy = Math.abs(b.dy); b.y = ballR; }
+        ctx.beginPath(); ctx.arc(b.x, b.y, 7, 0, Math.PI*2); ctx.fillStyle = "#fff"; ctx.fill();
+        if (b.x < 7 || b.x > canvas.width - 7) b.dx *= -1;
+        if (b.y < 7) b.dy *= -1;
         if(b.y > canvas.height - 27 && b.y < canvas.height - 5 && b.x > paddleX && b.x < paddleX + paddleWidth) {
             let hitPos = (b.x - (paddleX + paddleWidth / 2)) / (paddleWidth / 2);
-            let angle = hitPos * (Math.PI / 3); 
-            b.dx = currentTargetSpeed * Math.sin(angle); b.dy = -currentTargetSpeed * Math.cos(angle);
+            b.dx = currentTargetSpeed * Math.sin(hitPos * (Math.PI / 3));
+            b.dy = -currentTargetSpeed * Math.cos(hitPos * (Math.PI / 3));
             b.y = canvas.height - 28; combo = 0;
         }
         if(b.y > canvas.height + 20) { b.active = false; if(balls.filter(a=>a.active).length === 0) endGame(false); }
@@ -277,52 +261,52 @@ function drawBalls() {
 }
 
 function checkCollisions() {
-    if(isPaused) return; 
+    if(isPaused || clearCalled) return; 
     balls.forEach(ball => {
         if(!ball.active) return;
         bricks.forEach(col => col.forEach(b => {
             if(b.status > 0 && ball.x > b.x-5 && ball.x < b.x+47 && ball.y > b.y-5 && ball.y < b.y+20) {
                 ball.dy *= -1; b.status--;
-                if(b.status === 0) { combo++; comboTimer = 60; score += (6 - b.row) * 10 * combo; document.getElementById("score").innerText = score; if(Math.random() < 0.12) items.push({x: b.x+21, y: b.y, type: Math.random() < 0.4 ? 'multi' : Math.random() < 0.7 ? 'wide' : 'short'}); currentTargetSpeed += 0.05; }
+                if(b.status === 0) { 
+                    combo++; comboTimer = 60; score += (6 - b.row) * 10 * combo; 
+                    document.getElementById("score").innerText = score;
+                    if(Math.random() < 0.12) items.push({x: b.x+21, y: b.y, type: Math.random() < 0.4 ? 'multi' : Math.random() < 0.7 ? 'wide' : 'short'});
+                    currentTargetSpeed += 0.05;
+                }
             }
         }));
         wallBricks.forEach(w => {
             if(ball.x > w.x - 5 && ball.x < w.x + w.w + 5 && ball.y > w.y - 5 && ball.y < w.y + w.h + 5) {
-                if (Math.abs(ball.x - (w.x + w.w/2)) > Math.abs(ball.y - (w.y + w.h/2))) { ball.dx *= -1; ball.x = ball.x < w.x + w.w/2 ? w.x - 7 : w.x + w.w + 7; }
-                else { ball.dy *= -1; ball.y = ball.y < w.y + w.h/2 ? w.y - 7 : w.y + w.h + 7; }
+                if (Math.abs(ball.x - (w.x + w.w/2)) > Math.abs(ball.y - (w.y + w.h/2))) b.dx *= -1; else ball.dy *= -1;
             }
         });
         if(boss) {
             let bx = boss.x, by = boss.y + advanceY/2;
             if(ball.x > bx && ball.x < bx + boss.w && ball.y > by && ball.y < by + boss.h) {
                 let distToCore = Math.sqrt(Math.pow(ball.x - (bx + boss.w/2), 2) + Math.pow(ball.y - (by + boss.h/2), 2));
-                if (distToCore < 20) { boss.hp -= 3; shakeTime = 10; score += 100; }
-                else { boss.hp -= 1; shakeTime = 4; score += 20; }
+                boss.hp -= (distToCore < 20) ? 3 : 1; shakeTime = (distToCore < 20) ? 10 : 4;
                 ball.dy *= -1; ball.y = ball.y < by + boss.h/2 ? by - 8 : by + boss.h + 8;
                 document.getElementById("score").innerText = score;
                 if(boss.hp <= 0) endGame(true);
             }
         }
     });
-    if(!boss && bricks.length > 0 && bricks.flat().every(b => b.status === 0)) { showIntermission(); }
+    // クリア判定
+    if(!boss && bricks.length > 0 && bricks.flat().every(b => b.status === 0)) showIntermission();
 }
-
-function drawCombo() { if(combo > 1) { ctx.fillStyle = "#ff0"; ctx.font = "bold 24px Arial"; ctx.textAlign="right"; ctx.fillText(combo + " COMBO!", canvas.width - 20, 100); } }
 
 function endGame(win) {
     isGameOver = true; clearInterval(gameInterval);
-    const timeSpent = 300 - timeLeft;
     document.getElementById("result-screen").style.display = "flex";
     document.getElementById("result-msg").innerText = win ? "ALL STAGES CLEAR!" : "GAME OVER";
-    document.getElementById("result-msg").style.color = win ? "#0f0" : "#f00";
     document.getElementById("final-score-display").innerText = score;
-    document.getElementById("final-stats").innerHTML = `FINAL STAGE: ${stage} / TIME: ${formatTime(timeSpent)}`;
-    let isNewRecord = false;
+    const timeSpent = 300 - timeLeft;
     const bestS = parseInt(localStorage.getItem('bestScore') || 0);
     const bestT = parseInt(localStorage.getItem('bestTime') || 9999);
-    if(score > bestS) { localStorage.setItem('bestScore', score); isNewRecord = true; }
-    if(win && timeSpent < bestT) { localStorage.setItem('bestTime', timeSpent); isNewRecord = true; }
-    if(isNewRecord) document.getElementById("record-notice").style.display = "block";
+    let isNew = false;
+    if(score > bestS) { localStorage.setItem('bestScore', score); isNew = true; }
+    if(win && timeSpent < bestT) { localStorage.setItem('bestTime', timeSpent); isNew = true; }
+    if(isNew) document.getElementById("record-notice").style.display = "block";
     updateRecordsDisplay();
 }
 
