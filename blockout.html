@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>BLOCK BREAKER - SPECIAL EDITION</title>
+    <title>BLOCK BREAKER - FINAL CONTROL</title>
     <style>
         html, body { 
             background: #000; color: #fff; text-align: center; font-family: sans-serif; 
@@ -18,10 +18,10 @@
         #touch-area { flex-grow: 1; width: 100%; background: #0a0a0a; display: flex; justify-content: center; align-items: center; border-top: 1px solid #333; }
 
         .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
-        button { padding: 18px 45px; font-size: 20px; background: #28a745; color: white; border: none; border-radius: 50px; cursor: pointer; margin: 10px; font-weight: bold; }
+        button { padding: 15px 40px; font-size: 18px; background: #28a745; color: white; border: none; border-radius: 50px; cursor: pointer; margin: 10px; font-weight: bold; }
+        .btn-reset { background: #666; font-size: 12px; padding: 8px 20px; opacity: 0.7; }
         
-        /* 記録更新のアニメーション */
-        @keyframes flash { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.1); color: #ff0; } }
+        @keyframes flash { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; color: #ff0; } }
         .new-record { color: #f0f; font-weight: bold; animation: flash 0.5s infinite; font-size: 24px; margin-top: 10px; display: none; }
 
         .boss-hp-bar { width: 80%; height: 8px; background: #333; border: 1px solid #fff; margin: 5px auto; display: none; overflow: hidden; border-radius: 4px; }
@@ -43,11 +43,12 @@
 
         <div id="start-screen" class="overlay">
             <h1 style="color:#0f0; margin-bottom:5px;">BLOCK BREAKER</h1>
-            <div id="record-box" style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+            <div id="record-box" style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 10px; min-width: 200px;">
                 BEST SCORE: <span id="best-score">0</span><br>
                 BEST TIME: <span id="best-time">--:--</span>
             </div>
-            <button onclick="startGame()">GAME START</button>
+            <button onclick="startGame()">GAME START</button><br>
+            <button class="btn-reset" onclick="resetRecords()">RESET RECORDS</button>
         </div>
 
         <div id="result-screen" class="overlay" style="display:none">
@@ -81,6 +82,19 @@ function updateRecordsDisplay() {
     document.getElementById('best-time').innerText = t ? formatTime(t) : "--:--";
 }
 
+// レコードリセット機能
+function resetRecords() {
+    const pw = prompt("パスワードを入力してください：");
+    if (pw === "1117") {
+        localStorage.removeItem('bestScore');
+        localStorage.removeItem('bestTime');
+        alert("記録をリセットしました。");
+        updateRecordsDisplay();
+    } else if (pw !== null) {
+        alert("パスワードが違います。");
+    }
+}
+
 function formatTime(sec) {
     let m = Math.floor(sec / 60);
     let s = sec % 60;
@@ -105,11 +119,10 @@ function initStage(n) {
     if (n === 1) createBricks(5, 7, false);
     else if (n === 2) {
         createBricks(6, 8, true);
-        // 壁ブロックの配置
-        for(let i=0; i<5; i++) wallBricks.push({x: i*80 + 10, y: 250, w: 60, h: 15});
+        // 壁ブロック：サイズを小さく(40x12)、数を減らして(4個)隙間を確保
+        for(let i=0; i<4; i++) wallBricks.push({x: i*100 + 40, y: 240, w: 40, h: 12});
     } else if (n === 3) {
         createBricks(4, 8, false);
-        // ボス：hpを少し増やし、中央に弱点コア(weakX, weakY)を設定
         boss = { x: 125, y: 50, w: 150, h: 50, hp: 120, maxHp: 120 };
     }
 }
@@ -180,17 +193,10 @@ function drawWall() {
 function drawBoss() { 
     if(!boss) return; 
     let bx = boss.x, by = boss.y + advanceY/2;
-    // ボス本体
-    ctx.fillStyle = "#404"; 
-    ctx.fillRect(bx, by, boss.w, boss.h); 
+    ctx.fillStyle = "#404"; ctx.fillRect(bx, by, boss.w, boss.h); 
     ctx.strokeStyle = "#f0f"; ctx.lineWidth = 2; ctx.strokeRect(bx, by, boss.w, boss.h);
-    
-    // 弱点コアの表示
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.arc(bx + boss.w/2, by + boss.h/2, 12, 0, Math.PI*2);
-    ctx.fill();
-    ctx.shadowBlur = 15; ctx.shadowColor = "#0ff"; // コアを発光させる
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(bx + boss.w/2, by + boss.h/2, 12, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 15; ctx.shadowColor = "#0ff";
     document.getElementById("boss-hp-fill").style.width = (boss.hp/boss.maxHp*100) + "%";
     ctx.shadowBlur = 0;
 }
@@ -225,13 +231,9 @@ function drawBalls() {
     balls.forEach(b => {
         if(!b.active) return;
         ctx.beginPath(); ctx.arc(b.x, b.y, ballR, 0, Math.PI*2); ctx.fillStyle = "#fff"; ctx.fill();
-        
-        // 外壁反射
         if (b.x < ballR) { b.dx = Math.abs(b.dx); b.x = ballR; }
         else if (b.x > canvas.width - ballR) { b.dx = -Math.abs(b.dx); b.x = canvas.width - ballR; }
         if (b.y < ballR) { b.dy = Math.abs(b.dy); b.y = ballR; }
-
-        // パドル反射
         if(b.y > canvas.height - 27 && b.y < canvas.height - 5 && b.x > paddleX && b.x < paddleX + paddleWidth) {
             let hitPos = (b.x - (paddleX + paddleWidth / 2)) / (paddleWidth / 2);
             let angle = hitPos * (Math.PI / 3); 
@@ -248,56 +250,25 @@ function drawBalls() {
 function checkCollisions() {
     balls.forEach(ball => {
         if(!ball.active) return;
-        
-        // ブロック衝突
         bricks.forEach(col => col.forEach(b => {
             if(b.status > 0 && ball.x > b.x-5 && ball.x < b.x+47 && ball.y > b.y-5 && ball.y < b.y+20) {
                 ball.dy *= -1; b.status--;
-                if(b.status === 0) {
-                    combo++; comboTimer = 60;
-                    score += (6 - b.row) * 10 * combo;
-                    document.getElementById("score").innerText = score;
-                    if(Math.random() < 0.12) items.push({x: b.x+21, y: b.y, type: Math.random() < 0.4 ? 'multi' : Math.random() < 0.7 ? 'wide' : 'short'});
-                    currentTargetSpeed += 0.05;
-                }
+                if(b.status === 0) { combo++; comboTimer = 60; score += (6 - b.row) * 10 * combo; document.getElementById("score").innerText = score; if(Math.random() < 0.12) items.push({x: b.x+21, y: b.y, type: Math.random() < 0.4 ? 'multi' : Math.random() < 0.7 ? 'wide' : 'short'}); currentTargetSpeed += 0.05; }
             }
         }));
-
-        // ステージ2：壁ブロック衝突（すり抜け防止強化版）
         wallBricks.forEach(w => {
             if(ball.x > w.x - 5 && ball.x < w.x + w.w + 5 && ball.y > w.y - 5 && ball.y < w.y + w.h + 5) {
-                // ボールの位置に基づいて反射方向を決定（簡易的なめり込み修正）
-                if (Math.abs(ball.x - (w.x + w.w/2)) > Math.abs(ball.y - (w.y + w.h/2))) {
-                    ball.dx *= -1;
-                    ball.x = ball.x < w.x + w.w/2 ? w.x - 6 : w.x + w.w + 6;
-                } else {
-                    ball.dy *= -1;
-                    ball.y = ball.y < w.y + w.h/2 ? w.y - 6 : w.y + w.h + 6;
-                }
+                if (Math.abs(ball.x - (w.x + w.w/2)) > Math.abs(ball.y - (w.y + w.h/2))) { ball.dx *= -1; ball.x = ball.x < w.x + w.w/2 ? w.x - 7 : w.x + w.w + 7; }
+                else { ball.dy *= -1; ball.y = ball.y < w.y + w.h/2 ? w.y - 7 : w.y + w.h + 7; }
             }
         });
-
-        // ステージ3：ボス衝突（コア弱点システム）
         if(boss) {
             let bx = boss.x, by = boss.y + advanceY/2;
             if(ball.x > bx && ball.x < bx + boss.w && ball.y > by && ball.y < by + boss.h) {
-                // コア（中央）に近いか判定
                 let distToCore = Math.sqrt(Math.pow(ball.x - (bx + boss.w/2), 2) + Math.pow(ball.y - (by + boss.h/2), 2));
-                
-                if (distToCore < 20) {
-                    // コア内部！反射はさせるがダメージを大きく、震動も強く
-                    boss.hp -= 3; shakeTime = 10;
-                    score += 100;
-                } else {
-                    // 通常部位
-                    boss.hp -= 1; shakeTime = 4;
-                    score += 20;
-                }
-                
-                ball.dy *= -1;
-                // めり込み防止（ボスの外へ押し出す）
-                ball.y = ball.y < by + boss.h/2 ? by - 8 : by + boss.h + 8;
-
+                if (distToCore < 20) { boss.hp -= 3; shakeTime = 10; score += 100; }
+                else { boss.hp -= 1; shakeTime = 4; score += 20; }
+                ball.dy *= -1; ball.y = ball.y < by + boss.h/2 ? by - 8 : by + boss.h + 8;
                 document.getElementById("score").innerText = score;
                 if(boss.hp <= 0) endGame(true);
             }
@@ -316,18 +287,12 @@ function endGame(win) {
     document.getElementById("result-msg").style.color = win ? "#0f0" : "#f00";
     document.getElementById("final-score-display").innerText = score;
     document.getElementById("final-stats").innerHTML = `STAGE: ${stage} / TIME: ${formatTime(timeSpent)}`;
-    
-    // 記録更新チェック
     let isNewRecord = false;
     const bestS = parseInt(localStorage.getItem('bestScore') || 0);
     const bestT = parseInt(localStorage.getItem('bestTime') || 9999);
-    
     if(score > bestS) { localStorage.setItem('bestScore', score); isNewRecord = true; }
     if(win && timeSpent < bestT) { localStorage.setItem('bestTime', timeSpent); isNewRecord = true; }
-    
-    if(isNewRecord) {
-        document.getElementById("record-notice").style.display = "block";
-    }
+    if(isNewRecord) document.getElementById("record-notice").style.display = "block";
     updateRecordsDisplay();
 }
 
