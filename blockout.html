@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BLOCK BREAKER - STABLE PHYSICS</title>
+    <title>BLOCK BREAKER - FINAL STABLE</title>
     <style>
         html, body { background: #000; color: #fff; text-align: center; font-family: sans-serif; overflow: hidden; touch-action: none; margin: 0; width: 100%; height: 100%; }
         #game-container { display: flex; flex-direction: column; height: 100vh; }
@@ -188,28 +188,27 @@ function update() {
         if(!b.active) return;
         b.x += b.dx; b.y += b.dy;
 
-        // --- 壁反射ロジック（修正点：垂直バウンド防止） ---
-        const minDx = 1.8; // 横移動の最小保証速度
+        // --- 物理安定化：壁反射ロジック（ここを強化） ---
+        const minDx = 2.0; // 垂直ループを防ぐための最小横速度
         if (b.x < 7) { 
             b.dx = Math.abs(b.dx); 
-            if (b.dx < minDx) b.dx = minDx; // 横に弾く
-            b.x = 7; // めり込み防止
+            if (b.dx < minDx) b.dx = minDx; // 強制的に右へ弾く
+            b.x = 7; // めり込み防止の強制座標修正
         } else if (b.x > 393) { 
             b.dx = -Math.abs(b.dx); 
-            if (b.dx > -minDx) b.dx = -minDx; // 横に弾く
-            b.x = 393; // めり込み防止
+            if (b.dx > -minDx) b.dx = -minDx; // 強制的に左へ弾く
+            b.x = 393; // めり込み防止の強制座標修正
         }
-        
-        if (b.y < 7) { 
-            b.dy = Math.abs(b.dy); 
-            b.y = 7;
+        if (b.y < 7) {
+            b.dy = Math.abs(b.dy);
+            b.y = 7; // 天井めり込み防止
         }
 
-        // パドル反射
+        // パドル反射（中心打ちでもわずかに角度をつける）
         if (b.y > 473 && b.y < 490 && b.x > paddleX && b.x < paddleX + paddleWidth) {
             let hit = (b.x - (paddleX + paddleWidth/2)) / (paddleWidth/2);
             let angle = hit * (Math.PI / 3);
-            if(Math.abs(angle) < 0.25) angle = hit < 0 ? -0.25 : 0.25; // パドルでも垂直を避ける
+            if(Math.abs(angle) < 0.25) angle = hit < 0 ? -0.25 : 0.25; 
             b.dx = currentTargetSpeed * Math.sin(angle);
             b.dy = -currentTargetSpeed * Math.cos(angle);
             b.y = 472; combo = 0;
@@ -241,7 +240,7 @@ function update() {
             }
         });
 
-        // ボス衝突演出
+        // ボス衝突演出 (ガガガ反射)
         if (boss) {
             let bx = boss.x, by = boss.y + advanceY/2;
             if (b.x > bx && b.x < bx + boss.w && b.y > by && b.y < by + boss.h) {
