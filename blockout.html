@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BLOCK BREAKER - FINAL STABLE</title>
+    <title>BLOCK BREAKER - DEV TOOLS</title>
     <style>
         html, body { background: #000; color: #fff; text-align: center; font-family: sans-serif; overflow: hidden; touch-action: none; margin: 0; width: 100%; height: 100%; }
         #game-container { display: flex; flex-direction: column; height: 100vh; }
@@ -88,10 +88,20 @@ function updateRecordsDisplay() {
     document.getElementById('best-time').innerText = t ? formatTime(t) : "--:--";
 }
 
+// レコードリセット兼、ステージセレクト裏設定
 function resetRecords() {
-    if (prompt("パスワード：") === "1117") {
+    const pw = prompt("パスワード：");
+    if (pw === "1117") {
         localStorage.removeItem('bestScore'); localStorage.removeItem('bestTime');
-        updateRecordsDisplay(); alert("Reset OK");
+        updateRecordsDisplay(); alert("Records Reset OK");
+    } else if (pw === "2222") {
+        alert("STAGE 2 SELECT");
+        stage = 2; // スタート時にinitStage(1)が走るのを上書きするためここでセット
+        startGame(2);
+    } else if (pw === "3333") {
+        alert("STAGE 3 SELECT");
+        stage = 3;
+        startGame(3);
     }
 }
 
@@ -140,11 +150,11 @@ window.addEventListener("touchmove", e => {
 }, {passive: false});
 window.addEventListener("touchend", () => { lastTouchX = null; });
 
-function startGame() {
+function startGame(targetStage = 1) {
     gameState = "PLAY";
     document.getElementById("start-screen").style.display = "none";
     score = 0; timeLeft = 300; paddleWidth = INITIAL_PADDLE_WIDTH; paddleSizeTimer = 0;
-    initStage(1);
+    initStage(targetStage);
     if(gameInterval) clearInterval(gameInterval);
     gameInterval = setInterval(() => {
         if(gameState === "PLAY") {
@@ -188,23 +198,22 @@ function update() {
         if(!b.active) return;
         b.x += b.dx; b.y += b.dy;
 
-        // --- 物理安定化：壁反射ロジック（ここを強化） ---
-        const minDx = 2.0; // 垂直ループを防ぐための最小横速度
+        // --- 物理安定化：壁反射ロジック ---
+        const minDx = 2.0; 
         if (b.x < 7) { 
             b.dx = Math.abs(b.dx); 
-            if (b.dx < minDx) b.dx = minDx; // 強制的に右へ弾く
-            b.x = 7; // めり込み防止の強制座標修正
+            if (b.dx < minDx) b.dx = minDx; 
+            b.x = 7; 
         } else if (b.x > 393) { 
             b.dx = -Math.abs(b.dx); 
-            if (b.dx > -minDx) b.dx = -minDx; // 強制的に左へ弾く
-            b.x = 393; // めり込み防止の強制座標修正
+            if (b.dx > -minDx) b.dx = -minDx; 
+            b.x = 393; 
         }
         if (b.y < 7) {
             b.dy = Math.abs(b.dy);
-            b.y = 7; // 天井めり込み防止
+            b.y = 7; 
         }
 
-        // パドル反射（中心打ちでもわずかに角度をつける）
         if (b.y > 473 && b.y < 490 && b.x > paddleX && b.x < paddleX + paddleWidth) {
             let hit = (b.x - (paddleX + paddleWidth/2)) / (paddleWidth/2);
             let angle = hit * (Math.PI / 3);
@@ -216,7 +225,6 @@ function update() {
 
         if (b.y > 520) { b.active = false; if (balls.filter(a => a.active).length === 0) endGame(false); }
 
-        // ブロック衝突
         bricks.forEach((col, c) => col.forEach((br, r) => {
             if (br.status > 0) {
                 let bx = c*(47)+30, by = r*(20)+50+advanceY;
@@ -232,7 +240,6 @@ function update() {
             }
         }));
 
-        // ステージ2 特殊壁
         wallBricks.forEach(w => {
             if (b.x > w.x-5 && b.x < w.x+w.w+5 && b.y > w.y-5 && b.y < w.y+w.h+5) {
                 if (Math.abs(b.x - (w.x + w.w/2)) > Math.abs(b.y - (w.y + w.h/2))) b.dx *= -1; else b.dy *= -1;
@@ -240,7 +247,6 @@ function update() {
             }
         });
 
-        // ボス衝突演出 (ガガガ反射)
         if (boss) {
             let bx = boss.x, by = boss.y + advanceY/2;
             if (b.x > bx && b.x < bx + boss.w && b.y > by && b.y < by + boss.h) {
