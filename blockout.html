@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BLOCK BREAKER - ULTIMATE STABLE FINAL</title>
+    <title>BLOCK BREAKER - FULL SPEC</title>
     <style>
         html, body { background: #000; color: #fff; text-align: center; font-family: sans-serif; overflow: hidden; touch-action: none; margin: 0; width: 100%; height: 100%; }
         #game-container { display: flex; flex-direction: column; height: 100vh; }
         .ui-top { height: 40px; display: flex; justify-content: space-around; align-items: center; background: #111; color: #0f0; font-size: 14px; flex-shrink: 0; }
-        #screen-area { position: relative; flex-grow: 1; width: 100%; background: #000; }
+        #screen-area { position: relative; flex-grow: 1; width: 100%; background: #000; overflow: hidden;}
         canvas { display: block; margin: 0 auto; width: 100%; height: 100%; object-fit: contain; border: 1px solid #333; }
         #touch-area { height: 25vh; width: 100%; background: #0a0a0a; display: flex; justify-content: center; align-items: center; border-top: 2px solid #333; flex-shrink: 0; }
         .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
@@ -115,8 +115,9 @@ function initStage(n) {
         createBricks(6, 8, true);
         for(let i=0; i<4; i++) wallBricks.push({x: i*100 + 35, y: 220, w: 50, h: 15});
     } else if (n === 3) {
-        createBricks(3, 8, false);
-        boss = { x: 100, y: 40, w: 200, h: 80, hp: 80, maxHp: 80 }; // HPを少し下げて爽快感重視に
+        // ステージ3: 通常ブロックに硬いブロックをランダム混入
+        createBricks(3, 8, true); 
+        boss = { x: 100, y: 30, w: 200, h: 100, hp: 120, maxHp: 120 };
     }
 }
 
@@ -124,12 +125,13 @@ function createBricks(rows, cols, hasHard) {
     for(let c=0; c<cols; c++) {
         bricks[c] = [];
         for(let r=0; r<rows; r++) {
-            bricks[c][r] = { status: (hasHard && Math.random() < 0.2) ? 2 : 1, row: r };
+            // ステージ3は2割の確率で硬いブロック、それ以外は1割
+            let prob = (stage === 3) ? 0.25 : 0.1;
+            bricks[c][r] = { status: (hasHard && Math.random() < prob) ? 2 : 1, row: r };
         }
     }
 }
 
-// 操作
 let lastTouchX = null;
 window.addEventListener("touchstart", e => { lastTouchX = e.touches[0].clientX; }, {passive: false});
 window.addEventListener("touchmove", e => {
@@ -160,16 +162,10 @@ function showIntermission() {
     document.getElementById("intermission-screen").style.display = "flex";
     document.getElementById("inter-score").innerText = score;
     document.getElementById("inter-time").innerText = formatTime(timeLeft);
-    const bestS = parseInt(localStorage.getItem('bestScore') || 0);
-    if(score > bestS) {
-        localStorage.setItem('bestScore', score);
-        document.getElementById("inter-record-notice").style.display = "block";
-    }
 }
 
 function continueGame() {
     document.getElementById("intermission-screen").style.display = "none";
-    document.getElementById("inter-record-notice").style.display = "none";
     initStage(stage + 1);
     gameState = "PLAY";
 }
@@ -187,25 +183,18 @@ function update() {
     }
     if (comboTimer > 0) comboTimer--; else combo = 0;
     
-    // ボスの進行速度を少し遅く調整(0.07 -> 0.05)
-    if (stage === 3) advanceY += 0.05; 
-    if (advanceY > 280) endGame(false); // 進行限界を下げる(185 -> 280)
+    if (stage === 3) advanceY += 0.04; 
+    if (advanceY > 280) endGame(false);
 
     balls.forEach(b => {
         if(!b.active) return;
         b.x += b.dx; b.y += b.dy;
 
-        // 壁反射 + 垂直移動防止
-        if (b.x < 7 || b.x > 393) {
-            b.dx *= -1;
-            if (Math.abs(b.dx) < 1.5) b.dx = b.dx < 0 ? -2 : 2; // 最低限の横移動を保証
-        }
+        if (b.x < 7 || b.x > 393) { b.dx *= -1; if (Math.abs(b.dx) < 1.5) b.dx = b.dx < 0 ? -2 : 2; }
         if (b.y < 7) b.dy = Math.abs(b.dy);
 
-        // パドル反射
         if (b.y > 473 && b.y < 490 && b.x > paddleX && b.x < paddleX + paddleWidth) {
             let hit = (b.x - (paddleX + paddleWidth/2)) / (paddleWidth/2);
-            // ブルブル防止：必ず一定の角度をつける
             let angle = hit * (Math.PI / 3);
             if(Math.abs(angle) < 0.2) angle = hit < 0 ? -0.3 : 0.3;
             b.dx = currentTargetSpeed * Math.sin(angle);
@@ -221,37 +210,46 @@ function update() {
                 let bx = c*(47)+30, by = r*(20)+50+advanceY;
                 if (b.x > bx && b.x < bx+42 && b.y > by && b.y < by+15) {
                     b.dy *= -1; br.status--;
-                    if (br.status === 0) {
-                        combo++; comboTimer = 60; score += (6 - br.row) * 10 * combo;
-                        document.getElementById("score").innerText = score;
-                        if(Math.random() < 0.15) spawnItem(bx+21, by);
-                        currentTargetSpeed += 0.04;
-                    }
+                    combo++; comboTimer = 60;
+                    score += (6 - br.row) * 10 * combo;
+                    document.getElementById("score").innerText = score;
+                    if (br.status === 0 && Math.random() < 0.15) spawnItem(bx+21, by);
+                    currentTargetSpeed += 0.03;
+                    shakeTime = 3;
                 }
             }
         }));
 
-        // ステージ2 特殊壁反射
+        // ステージ2 特殊壁
         wallBricks.forEach(w => {
             if (b.x > w.x-5 && b.x < w.x+w.w+5 && b.y > w.y-5 && b.y < w.y+w.h+5) {
                 if (Math.abs(b.x - (w.x + w.w/2)) > Math.abs(b.y - (w.y + w.h/2))) b.dx *= -1; else b.dy *= -1;
-                score += 1; // 壁反射でも微加点
+                score += 5;
             }
         });
 
-        // ボス衝突 (爽快感のために内部に潜り込める判定に)
+        // ボス衝突演出 (ガガガ反射)
         if (boss) {
             let bx = boss.x, by = boss.y + advanceY/2;
             if (b.x > bx && b.x < bx + boss.w && b.y > by && b.y < by + boss.h) {
-                // コア（中央）
-                let dist = Math.sqrt((b.x-(bx+boss.w/2))**2 + (b.y-(by+boss.h/2))**2);
-                if (dist < 30) { 
-                    boss.hp -= 4; shakeTime = 12; score += 150; 
-                    b.dy *= -1; // 反発
+                let centerX = bx + boss.w/2;
+                let centerY = by + boss.h/2;
+                let distToCore = Math.sqrt((b.x-centerX)**2 + (b.y-centerY)**2);
+
+                // 弱点コア
+                if (distToCore < 35) { 
+                    boss.hp -= 2.5; 
+                    shakeTime = 15; // 激しく揺らす
+                    combo++; comboTimer = 60;
+                    score += 50 * combo; // コンボを乗せて加算
+                    b.dy *= -1.05; // 内部で暴れるように少し加速
                 } else {
-                    // 外殻：少し跳ね返りやすくして内部に閉じ込めやすく
-                    if (Math.abs(b.x - (bx + boss.w/2)) > Math.abs(b.y - (by + boss.h/2))) b.dx *= -1; else b.dy *= -1;
-                    boss.hp -= 0.5; score += 10;
+                    // 外殻内での反射
+                    if (Math.abs(b.x - centerX) > Math.abs(b.y - centerY)) b.dx *= -1; else b.dy *= -1;
+                    boss.hp -= 0.5;
+                    score += 10;
+                    shakeTime = 5;
+                    combo++; comboTimer = 30; // 内部反射でもコンボ維持
                 }
                 document.getElementById("score").innerText = score;
                 if (boss.hp <= 0) endGame(true);
@@ -259,7 +257,6 @@ function update() {
         }
     });
 
-    // アイテム
     items.forEach((it, i) => {
         it.y += 2.5;
         if (it.y > 475 && it.y < 500 && it.x > paddleX && it.x < paddleX + paddleWidth) {
@@ -282,43 +279,50 @@ function spawnItem(x, y) {
 }
 
 function draw() {
-    ctx.clearRect(0, 0, 400, 500);
-    if(shakeTime > 0) { ctx.save(); ctx.translate((Math.random()-0.5)*7, (Math.random()-0.5)*7); shakeTime--; }
+    // スクリーンシェイクの適用
+    ctx.save();
+    if(shakeTime > 0) {
+        ctx.translate((Math.random()-0.5)*shakeTime, (Math.random()-0.5)*shakeTime);
+        shakeTime--;
+    }
+
+    ctx.clearRect(-20, -20, 440, 540); // 揺れ分をカバーしてクリア
 
     // ブロック
     let bw = 42, bh = 15, pad = 5, offT = 50 + advanceY, offL = 30;
     bricks.forEach((col, c) => col.forEach((b, r) => {
         if(b.status > 0) {
             let x = c*(bw+pad)+offL, y = r*(bh+pad)+offT;
-            ctx.fillStyle = b.status === 2 ? "#888" : `hsl(${r*40}, 70%, 50%)`;
+            ctx.fillStyle = b.status === 2 ? "#AAA" : `hsl(${r*40}, 70%, 50%)`;
             ctx.fillRect(x, y, bw, bh);
+            if(b.status === 2) { ctx.strokeStyle = "#FFF"; ctx.strokeRect(x,y,bw,bh); } // 硬いブロックの縁
         }
     }));
 
-    // ステージ2 特殊壁 (ガラス素材風)
+    // ガラス壁
     wallBricks.forEach(w => {
         let grad = ctx.createLinearGradient(w.x, w.y, w.x+w.w, w.y+w.h);
-        grad.addColorStop(0, "rgba(200, 255, 255, 0.4)");
-        grad.addColorStop(0.5, "rgba(255, 255, 255, 0.8)");
-        grad.addColorStop(1, "rgba(200, 255, 255, 0.4)");
-        ctx.fillStyle = grad;
-        ctx.fillRect(w.x, w.y, w.w, w.h);
-        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.strokeRect(w.x, w.y, w.w, w.h);
+        grad.addColorStop(0, "rgba(150, 255, 255, 0.3)");
+        grad.addColorStop(0.5, "rgba(255, 255, 255, 0.7)");
+        grad.addColorStop(1, "rgba(150, 255, 255, 0.3)");
+        ctx.fillStyle = grad; ctx.fillRect(w.x, w.y, w.w, w.h);
+        ctx.strokeStyle = "#fff"; ctx.strokeRect(w.x, w.y, w.w, w.h);
     });
 
-    // ボス
+    // ボス (コア演出)
     if (boss) {
         let bx = boss.x, by = boss.y + advanceY/2;
-        ctx.fillStyle = "rgba(100, 0, 100, 0.7)"; 
-        ctx.fillRect(bx, by, boss.w, boss.h); // 本体
-        ctx.strokeStyle = "#f0f"; ctx.lineWidth = 3; ctx.strokeRect(bx, by, boss.w, boss.h);
-        // コア（目玉）
-        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(bx+boss.w/2, by+boss.h/2, 20, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = "#f00"; ctx.beginPath(); ctx.arc(bx+boss.w/2, by+boss.h/2, 10, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "rgba(80, 0, 120, 0.6)"; 
+        ctx.fillRect(bx, by, boss.w, boss.h);
+        ctx.strokeStyle = "#f0f"; ctx.lineWidth = 2; ctx.strokeRect(bx, by, boss.w, boss.h);
+        // コア
+        let pulse = Math.sin(Date.now()/100)*5;
+        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(bx+boss.w/2, by+boss.h/2, 25+pulse, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#f00"; ctx.beginPath(); ctx.arc(bx+boss.w/2, by+boss.h/2, 12+pulse, 0, Math.PI*2); ctx.fill();
         document.getElementById("boss-hp-fill").style.width = (boss.hp/boss.maxHp*100) + "%";
     }
 
-    // アイテム (アルファベット表示)
+    // アイテム (L/S/M文字)
     items.forEach(it => {
         ctx.fillStyle = it.type === 'L' ? "#0af" : it.type === 'S' ? "#f00" : "#ff0";
         ctx.beginPath(); ctx.arc(it.x, it.y, 11, 0, Math.PI*2); ctx.fill();
@@ -338,13 +342,13 @@ function draw() {
     ctx.fillStyle = "#fff";
     balls.forEach(b => { if(b.active) { ctx.beginPath(); ctx.arc(b.x, b.y, 7, 0, Math.PI*2); ctx.fill(); } });
 
-    // コンボ表示 (位置を調整して確実に表示)
+    // コンボ表示 (ボスヒット中も連動)
     if(combo > 1) {
-        ctx.fillStyle = "#ff0"; ctx.font = "bold 28px Arial"; ctx.textAlign="right";
+        ctx.fillStyle = "#ff0"; ctx.font = "bold 30px Arial"; ctx.textAlign="right";
         ctx.fillText(combo + " COMBO!", 380, 100);
     }
 
-    if(shakeTime > 0) ctx.restore();
+    ctx.restore();
 }
 
 function endGame(win) {
@@ -353,13 +357,6 @@ function endGame(win) {
     document.getElementById("result-msg").innerText = win ? "ALL STAGES CLEAR!" : "GAME OVER";
     document.getElementById("final-score-display").innerText = score;
     const timeSpent = 300 - timeLeft;
-    document.getElementById("final-stats").innerHTML = `STAGE: ${stage} / TIME: ${formatTime(timeSpent)}`;
-    let isNew = false;
-    const bestS = parseInt(localStorage.getItem('bestScore') || 0);
-    const bestT = parseInt(localStorage.getItem('bestTime') || 9999);
-    if(score > bestS) { localStorage.setItem('bestScore', score); isNew = true; }
-    if(win && timeSpent < bestT) { localStorage.setItem('bestTime', timeSpent); isNew = true; }
-    if(isNew) document.getElementById("record-notice").style.display = "block";
     updateRecordsDisplay();
 }
 
