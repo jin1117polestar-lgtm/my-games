@@ -3,129 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ULTIMATE NEON PINBALL</title>
+    <title>MEDAL PINBALL RUSH - RUSH EDITION</title>
     <style>
-        /* コピペやメニューを完全に禁止 */
-        * {
-            user-select: none;
-            -webkit-user-select: none;
-            -webkit-touch-callout: none;
-            touch-action: none;
-        }
-        body { background: #000; margin: 0; overflow: hidden; font-family: 'Courier New', Courier, monospace; }
-        #wrapper { position: relative; max-width: 400px; margin: 0 auto; height: 100vh; background: #050010; }
+        * { user-select: none; -webkit-user-select: none; touch-action: none; }
+        body { background: #000; margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+        #game-container { position: relative; max-width: 450px; margin: 0 auto; height: 100vh; background: radial-gradient(circle, #1a1a2e 0%, #000 100%); border: 4px solid #333; box-shadow: 0 0 50px rgba(0, 255, 255, 0.2); }
+        .ui-header { position: absolute; top: 0; width: 100%; height: 80px; display: grid; grid-template-columns: 1fr 1fr; padding: 10px; box-sizing: border-box; background: rgba(0,0,0,0.7); border-bottom: 2px solid #0ff; z-index: 100; color: #0ff; font-family: monospace; }
         canvas { width: 100%; height: 100%; display: block; }
-        .ui-panel {
-            position: absolute; top: 0; width: 100%; height: 60px;
-            display: flex; justify-content: space-around; align-items: center;
-            background: rgba(0, 255, 255, 0.1); border-bottom: 2px solid #0ff;
-            color: #0ff; font-weight: bold; z-index: 10;
-        }
-        .overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); display: flex; flex-direction: column;
-            justify-content: center; align-items: center; z-index: 100;
-        }
-        .btn {
-            padding: 20px 40px; font-size: 20px; background: #0ff; color: #000;
-            border: none; border-radius: 50px; font-weight: bold; cursor: pointer;
-            box-shadow: 0 0 15px #0ff;
-        }
-        #fever {
-            position: absolute; top: 40%; width: 100%; text-align: center;
-            color: #ff0; font-size: 40px; display: none; pointer-events: none;
-            text-shadow: 0 0 20px #f0f; z-index: 50;
-        }
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 200; }
+        .btn-neon { padding: 15px 40px; font-size: 24px; background: transparent; color: #0ff; border: 2px solid #0ff; border-radius: 5px; cursor: pointer; text-shadow: 0 0 10px #0ff; box-shadow: 0 0 10px #0ff; }
+        #fever-log { position: absolute; top: 50%; width: 100%; text-align: center; color: #ff0; font-size: 40px; font-weight: bold; display: none; text-shadow: 0 0 20px #f00; z-index: 50; pointer-events: none; }
     </style>
 </head>
-<body oncontextmenu="return false;"> <div id="wrapper">
-    <div class="ui-panel">
-        <div>SCORE<div id="score">0</div></div>
-        <div>MEDAL<div id="medals">0</div></div>
-        <div>BALL<div id="balls">3</div></div>
+<body oncontextmenu="return false;">
+
+<div id="game-container">
+    <div class="ui-header">
+        <div>SCORE: <span id="score">0</span><br>BALL: <span id="balls">3</span></div>
+        <div style="text-align:right;">MEDAL: <span id="medals">0</span><br>COMBO: <span id="combo">x1</span></div>
     </div>
     
-    <div id="fever">FEVER!</div>
-    <canvas id="gameCanvas"></canvas>
+    <div id="fever-log">FEVER RUSH!!</div>
+    <canvas id="pinballCanvas"></canvas>
 
     <div id="start-screen" class="overlay">
-        <h1 style="color:#0ff; text-shadow:0 0 10px #0ff;">NEON PINBALL</h1>
-        <button id="start-btn" class="btn">START</button>
-        <button onclick="debug()" style="background:none; border:none; color:#333; margin-top:20px;">CODE</button>
+        <h1 style="color:#0ff; font-family:monospace; letter-spacing:5px;">MEDAL PINBALL<br><small>RUSH EDITION</small></h1>
+        <button id="start-btn" class="btn-neon">MISSION START</button>
+        <div id="debug-btn" style="margin-top:20px; color:#444; font-size:10px; cursor:pointer;">ENTER CODE</div>
     </div>
 </div>
 
 <script>
-const canvas = document.getElementById('gameCanvas');
+const canvas = document.getElementById('pinballCanvas');
 const ctx = canvas.getContext('2d');
 const W = 400, H = 700;
 canvas.width = W; canvas.height = H;
 
-// --- 物理設計 ---
-const ball = { x: 375, y: 640, vx: 0, vy: 0, r: 9, active: false, pull: 0, isPulling: false };
-const GRAVITY = 600, FRICTION = 0.995, BOUNCE = 0.6;
-let score = 0, medals = 0, balls = 3, combo = 0, fever = 0, debugWin = false;
+// --- 物理パラメータ ---
+const ball = { x: 375, y: 640, vx: 0, vy: 0, r: 8, active: false, pull: 0, isPulling: false };
+const GRAVITY = 650, FRICTION = 0.996, BOUNCE = 0.65;
+let score = 0, medals = 0, balls = 3, combo = 0, fever = 0, debugMode = false;
 
-let walls = [], flippers = [], bumpers = [], coins = [];
-let slot = { v: [0,0,0], active: false, timers: [0,0,0] };
+let walls = [], flippers = [], bumpers = [], coins = [], stars = [];
 
-function initField() {
+function init() {
+    // 宇宙の星屑背景
+    for(let i=0; i<50; i++) stars.push({x: Math.random()*W, y: Math.random()*H, s: Math.random()*2});
+
+    // 画像のレイアウトを再現した壁
     walls = [
-        {x1: 10, y1: 0, x2: 10, y2: 600}, // 左
-        {x1: 10, y1: 600, x2: 130, y2: 680}, // 左傾斜
-        {x1: 390, y1: 0, x2: 390, y2: 650}, // 右外
-        {x1: 355, y1: 150, x2: 355, y2: 650}, // 発射レーン壁
-        {x1: 355, y1: 650, x2: 270, y2: 680}, // 右傾斜
-        {x1: 10, y1: 0, x2: 340, y2: 0}, // 天井
-        {x1: 340, y1: 0, x2: 390, y2: 50}, // コーナー
-        {x1: 355, y1: 50, x2: 355, y2: 150, sensor: true} // 逆流防止（センサー化）
+        {x1: 20, y1: 100, x2: 20, y2: 600, color: '#0ff'}, // 左外壁
+        {x1: 20, y1: 600, x2: 120, y2: 680, color: '#0ff'}, // 左下スロープ
+        {x1: 380, y1: 100, x2: 380, y2: 650, color: '#0ff'}, // 右外壁
+        {x1: 345, y1: 120, x2: 345, y2: 650, color: '#0ff'}, // プランジャーレーン内壁
+        {x1: 345, y1: 650, x2: 280, y2: 680, color: '#0ff'}, // 右下スロープ
+        {x1: 20, y1: 100, x2: 100, y2: 20, color: '#0ff'}, // 左上カーブ
+        {x1: 100, y1: 20, x2: 300, y2: 20, color: '#0ff'}, // 天井
+        {x1: 300, y1: 20, x2: 380, y2: 100, color: '#0ff'} // 右上カーブ
     ];
+
+    // フリッパー（画像に基づき、外側から内側へ弾く軸配置）
     flippers = [
-        {x: 130, y: 680, len: 75, angle: 0.2, target: 0.2, side: -1},
-        {x: 270, y: 680, len: 75, angle: -0.2, target: -0.2, side: 1}
+        {x: 120, y: 680, len: 70, angle: 0.5, baseAngle: 0.5, side: 1, active: false}, // 左
+        {x: 280, y: 680, len: 70, angle: -0.5, baseAngle: -0.5, side: -1, active: false} // 右
     ];
+
+    // 画像のような発光バンパー
     bumpers = [
-        {x: 200, y: 180, r: 30, color: '#f0f'},
-        {x: 100, y: 300, r: 25, color: '#0f0'},
-        {x: 300, y: 300, r: 25, color: '#0f0'}
+        {x: 200, y: 180, r: 30, color: '#ff00ff', glow: '#f0f'},
+        {x: 120, y: 300, r: 25, color: '#00ffff', glow: '#0ff'},
+        {x: 280, y: 300, r: 25, color: '#00ff00', glow: '#0f0'}
     ];
-}
-
-// --- メインループ ---
-let last = performance.now();
-function loop(now) {
-    let dt = (now - last) / 1000;
-    if (dt > 0.1) dt = 0.1;
-    last = now;
-
-    update(dt);
-    draw();
-    requestAnimationFrame(loop);
 }
 
 function update(dt) {
     if (fever > 0) fever -= dt;
-    else document.getElementById('fever').style.display = 'none';
+    else document.getElementById('fever-log').style.display = 'none';
 
-    // スロット更新
-    if (slot.active) {
-        slot.timers.forEach((t, i) => {
-            if (t > 0) {
-                slot.timers[i] -= dt;
-                slot.v[i] = Math.floor(Math.random() * 10);
-            } else if (debugWin) slot.v[i] = 7;
-        });
-        if (slot.timers[2] <= 0 && slot.v[0]===7 && slot.v[1]===7 && slot.v[2]===7) {
-            fever = 15; document.getElementById('fever').style.display = 'block';
-        }
-    }
+    if (ball.isPulling) ball.pull = Math.min(100, ball.pull + dt * 180);
 
-    // プランジャー蓄積
-    if (ball.isPulling) ball.pull = Math.min(150, ball.pull + dt * 250);
-
-    // フリッパー動作
     flippers.forEach(f => {
-        f.angle += (f.target - f.angle) * 25 * dt;
+        let target = f.active ? -0.8 * f.side : f.baseAngle;
+        f.angle += (target - f.angle) * 20 * dt;
     });
 
     if (ball.active) {
@@ -133,57 +92,54 @@ function update(dt) {
         ball.vx *= FRICTION; ball.vy *= FRICTION;
         ball.x += ball.vx * dt; ball.y += ball.vy * dt;
 
-        // 壁判定
-        walls.forEach(w => {
-            if (!w.sensor) collide(ball, w);
-        });
-
-        // フリッパー判定
+        walls.forEach(w => collide(ball, w));
         flippers.forEach(f => {
             const x2 = f.x + Math.cos(f.angle) * f.len * f.side;
             const y2 = f.y + Math.sin(f.angle) * f.len * f.side;
-            collide(ball, {x1: f.x, y1: f.y, x2: x2, y2: y2}, (f.target !== f.angle));
+            collide(ball, {x1: f.x, y1: f.y, x2: x2, y2: y2}, f.active);
         });
-
-        // バンパー判定
         bumpers.forEach(b => {
             let dx = ball.x - b.x, dy = ball.y - b.y, dist = Math.sqrt(dx*dx+dy*dy);
             if (dist < ball.r + b.r) {
                 let nx = dx/dist, ny = dy/dist;
                 ball.x = b.x + nx*(ball.r+b.r);
                 let dot = ball.vx*nx + ball.vy*ny;
-                ball.vx = (ball.vx - 2*dot*nx) * 1.5;
-                ball.vy = (ball.vy - 2*dot*ny) * 1.5;
-                score += 100 * (fever > 0 ? 5 : 1);
+                ball.vx = (ball.vx - 2*dot*nx) * 1.6;
+                ball.vy = (ball.vy - 2*dot*ny) * 1.6;
+                score += 100; combo++;
             }
         });
 
-        // スロットチェッカー（弾かないように判定のみ）
-        if (Math.abs(ball.x - 200) < 30 && Math.abs(ball.y - 450) < 30 && !slot.active) {
-            slot.active = true;
-            slot.timers = [1.5, 2.5, 3.5];
+        // 画像中央付近に「スロット穴」を仮想設置
+        if (Math.abs(ball.x-200)<25 && Math.abs(ball.y-450)<25) {
+            if (debugMode || Math.random() < 0.1) {
+                fever = 10; document.getElementById('fever-log').style.display='block';
+            }
             spawnCoins(200, 450);
+            ball.vy -= 100;
         }
 
-        if (ball.y > 720) {
+        if (ball.y > H + 50) {
             balls--;
-            if (balls <= 0) location.reload();
-            else resetBall();
+            if (balls <= 0) {
+                document.getElementById('start-screen').style.display = 'flex';
+                ball.active = false;
+            } else resetBall();
         }
     }
 
-    // コイン更新
     coins.forEach((c, i) => {
         c.vy += GRAVITY * dt; c.x += c.vx * dt; c.y += c.vy * dt;
-        if (c.y > 700) { coins.splice(i,1); medals++; score += 50; }
+        if (c.y > H) { coins.splice(i,1); medals++; score += 50; }
     });
 
-    document.getElementById('score').innerText = Math.floor(score);
+    document.getElementById('score').innerText = score;
     document.getElementById('medals').innerText = medals;
     document.getElementById('balls').innerText = balls;
+    document.getElementById('combo').innerText = "x" + (1 + Math.floor(combo/10));
 }
 
-function collide(b, l, hit=false) {
+function collide(b, l, isKick) {
     let dx = l.x2 - l.x1, dy = l.y2 - l.y1, len = dx*dx + dy*dy;
     let t = Math.max(0, Math.min(1, ((b.x-l.x1)*dx + (b.y-l.y1)*dy) / len));
     let cx = l.x1 + t*dx, cy = l.y1 + t*dy;
@@ -194,87 +150,95 @@ function collide(b, l, hit=false) {
         let dot = b.vx*nx + b.vy*ny;
         b.vx = (b.vx - 2*dot*nx) * BOUNCE;
         b.vy = (b.vy - 2*dot*ny) * BOUNCE;
-        if (hit) b.vy -= 600; // フリッパーで叩き上げる
+        if (isKick) { b.vy -= 700; b.vx += (b.x - l.x1) * 2; }
     }
-}
-
-function spawnCoins(x, y) {
-    for(let i=0; i<8; i++) coins.push({x:x, y:y, vx:(Math.random()-0.5)*200, vy:-200});
-}
-
-function resetBall() {
-    ball.active = false; ball.x = 373; ball.y = 630; ball.vx = 0; ball.vy = 0; ball.pull = 0;
 }
 
 function draw() {
     ctx.clearRect(0,0,W,H);
     
-    // コイン（背景）
-    ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
-    coins.forEach(c => { ctx.beginPath(); ctx.arc(c.x, c.y, 6, 0, Math.PI*2); ctx.fill(); });
+    // 背景の星
+    ctx.fillStyle = '#fff';
+    stars.forEach(s => ctx.fillRect(s.x, s.y, s.s, s.s));
 
-    // 壁
-    ctx.strokeStyle = '#0ff'; ctx.lineWidth = 4;
-    ctx.beginPath();
-    walls.forEach(w => { if(!w.sensor){ctx.moveTo(w.x1, w.y1); ctx.lineTo(w.x2, w.y2);} });
-    ctx.stroke();
+    // メダル（背景層）
+    ctx.shadowBlur = 10; ctx.shadowColor = '#ff0'; ctx.fillStyle = 'rgba(255,255,0,0.4)';
+    coins.forEach(c => { ctx.beginPath(); ctx.arc(c.x, c.y, 7, 0, Math.PI*2); ctx.fill(); });
 
-    // スロット
-    ctx.fillStyle = '#fff'; ctx.font = '30px Arial';
-    ctx.fillText(slot.v.join(' '), 160, 100);
-
-    // バンパー
-    bumpers.forEach(b => {
-        ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+    // ネオンウォール
+    walls.forEach(w => {
+        ctx.strokeStyle = w.color; ctx.lineWidth = 4; ctx.shadowBlur = 15; ctx.shadowColor = w.color;
+        ctx.beginPath(); ctx.moveTo(w.x1, w.y1); ctx.lineTo(w.x2, w.y2); ctx.stroke();
     });
 
-    // フリッパー
-    ctx.strokeStyle = '#ff0'; ctx.lineWidth = 10;
+    // 発光バンパー
+    bumpers.forEach(b => {
+        ctx.shadowBlur = 20; ctx.shadowColor = b.glow;
+        ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    });
+
+    // フリッパー（画像のデザインに近い形状）
+    ctx.lineWidth = 12; ctx.lineCap = 'round';
     flippers.forEach(f => {
         ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(f.angle);
+        ctx.strokeStyle = '#ff0'; ctx.shadowColor = '#ff0'; ctx.shadowBlur = 10;
         ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(f.len * f.side, 0); ctx.stroke();
         ctx.restore();
     });
 
-    // ボール
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2); ctx.fill();
+    // ボール（金属光沢風）
+    ctx.shadowBlur = 15; ctx.shadowColor = '#fff'; ctx.fillStyle = '#eee';
+    ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2); ctx.fill();
 
-    // プランジャー可視化
-    ctx.fillStyle = '#444'; ctx.fillRect(360, 650 + (ball.pull/2), 30, 50);
+    // プランジャー（画像のようなバネ構造）
+    ctx.shadowBlur = 0; ctx.fillStyle = '#555'; ctx.fillRect(355, 650 + ball.pull, 30, 50);
 }
 
-// --- 入力制御 ---
-const startBtn = document.getElementById('start-btn');
-startBtn.addEventListener('pointerdown', () => {
+function spawnCoins(x, y) {
+    for(let i=0; i<10; i++) coins.push({x:x, y:y, vx:(Math.random()-0.5)*300, vy:-250});
+}
+
+function resetBall() {
+    ball.active = false; ball.x = 365; ball.y = 635; ball.vx = 0; ball.vy = 0; ball.pull = 0;
+}
+
+// --- 操作系 ---
+let lastT = performance.now();
+function loop(t) {
+    update((t - lastT)/1000);
+    draw();
+    lastT = t;
+    requestAnimationFrame(loop);
+}
+
+document.getElementById('start-btn').addEventListener('click', () => {
     document.getElementById('start-screen').style.display = 'none';
-    initField(); resetBall();
+    init(); resetBall();
     requestAnimationFrame(loop);
 });
 
-window.addEventListener('pointerdown', e => {
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (W / rect.width);
+window.addEventListener('touchstart', e => {
+    const x = e.touches[0].clientX - canvas.offsetLeft;
     if (x > 340 && !ball.active) ball.isPulling = true;
     else {
-        if (x < 200) flippers[0].target = -0.6;
-        else flippers[1].target = 0.6;
+        if (x < W/2) flippers[0].active = true;
+        else flippers[1].active = true;
     }
 });
 
-window.addEventListener('pointerup', () => {
+window.addEventListener('touchend', () => {
     if (ball.isPulling) {
-        ball.vy = -ball.pull * 10; // 威力を大幅アップ
-        ball.vx = -50;
+        ball.vy = -ball.pull * 14; ball.vx = -60;
         ball.active = true; ball.isPulling = false;
     }
-    flippers[0].target = 0.2;
-    flippers[1].target = -0.2;
+    flippers.forEach(f => f.active = false);
 });
 
-function debug() {
-    let p = prompt("CODE?");
-    if (p === "7777") { debugWin = true; alert("DEBUG ON"); }
-}
+document.getElementById('debug-btn').addEventListener('click', () => {
+    let c = prompt("ENTER CODE");
+    if(c === "7777") { debugMode = true; alert("RUSH MODE ACTIVE"); }
+});
 </script>
 </body>
 </html>
