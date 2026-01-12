@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>MEDAL PINBALL RUSH</title>
+    <style>
+        html, body {
+            background: #000;
+            color: #fff;
+            text-align: center;
+            font-family: 'Press Start 2P', cursive, 'Courier New', sans-serif; /* レトロ感を出すフォント */
+            overflow: hidden;
+            touch-action: none;
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            -webkit-user-select: none;
+            user-select: none;
+            overscroll-behavior: contain; /* iOSのプルリフレッシュ対策 */
+        }
+        @font-face {
+            font-family: 'Press Start 2P';
+            src: url('https://fonts.gstatic.com/s/pressstart2p/v14/8Lg6Z-HLhE9SL1O_Q6HNCYl_F4M_7k8.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+        }
+
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            position: relative;
+            max-width: 600px; /* PCでの表示サイズ制限 */
+            margin: 0 auto;
+            border: 2px solid #333; /* ゲーム画面の枠 */
+            box-sizing: border-box;
+        }
+        .ui-top {
+            height: 60px; /* 少し小さめに */
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            align-items: center;
+            background: rgba(17, 17, 17, 0.8);
+            color: #0f0;
+            font-size: 10px; /* 少し小さめに */
+            border-bottom: 1px solid #333;
+            padding-top: env(safe-area-inset-top);
+            z-index: 10;
+        }
+        #screen-area {
+            position: relative;
+            flex-grow: 1;
+            width: 100%;
+            background: #000;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* アスペクト比を維持しつつ表示 */
+            background-color: #000;
+        }
+        #touch-area { /* フリッパー操作エリアはCanvasに内包するため非表示 */
+            display: none;
+        }
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            color: #0f0;
+        }
+        button {
+            padding: 12px 30px;
+            font-size: 18px;
+            background: #0f0;
+            border: none;
+            font-weight: bold;
+            border-radius: 30px;
+            margin: 8px; /* 少し広めに */
+            cursor: pointer;
+            font-family: 'Press Start 2P', cursive, sans-serif;
+            box-shadow: 0 4px #0a0;
+            transition: all 0.1s ease;
+            color: #000;
+        }
+        button:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px #0a0;
+        }
+        .code-btn {
+            background: #333;
+            color: #888;
+            font-size: 11px;
+            padding: 8px 20px; /* サイズ調整 */
+            margin-top: 15px; /* 上部との間隔を広げる */
+            border-radius: 5px;
+            box-shadow: 0 3px #111;
+        }
+        .code-btn:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px #111;
+        }
+
+        #fever-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 0, 255, 0.2); /* 派手な背景色 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #ff0;
+            font-size: 3em;
+            font-weight: bold;
+            text-shadow: 0 0 10px #f0f, 0 0 20px #f0f;
+            z-index: 99; /* 他のUIより下 */
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out;
+            pointer-events: none; /* クリックを透過 */
+        }
+        #fever-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .stat-val {
+            color: #fff;
+            font-size: 12px; /* 少し小さめに */
+        }
+
+        /* スプライトの代わりにピクセルアート風描画を使用 */
+        .pixel-text {
+            font-family: 'Press Start 2P', cursive, sans-serif;
+            font-size: 2em;
+            color: #0f0;
+            margin: 0;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="ui-top">
+        <div>SCORE <br><span id="score" class="stat-val">0</span></div>
+        <div>HI-SCORE <br><span id="hi-score" class="stat-val">0</span></div>
+        <div>BALL <br><span id="ball-count" class="stat-val">3</span></div>
+        <div>MEDAL <br><span id="medal-count" class="stat-val">0</span></div>
+        <div>COMBO <br><span id="combo" class="stat-val" style="color:#ff0">x1</span></div>
+    </div>
+    
+    <div id="screen-area">
+        <canvas id="gameCanvas" width="400" height="700"></canvas> <div id="start-screen" class="overlay">
+            <h1 class="pixel-text">MEDAL PINBALL</h1>
+            <p style="color:#888; font-size:12px; margin-top:5px;">RUSH EDITION</p>
+            <button onclick="startGame()">MISSION START</button>
+            <button class="code-btn" onclick="enterCode()">ENTER CODE</button>
+        </div>
+
+        <div id="result-screen" class="overlay" style="display:none">
+            <h2 id="result-msg" class="pixel-text">GAME OVER</h2>
+            <div id="final-stats" style="margin-bottom:20px; line-height: 1.8; font-size:14px;"></div>
+            <button onclick="location.reload()">BACK TO TITLE</button>
+        </div>
+
+        <div id="fever-overlay">FEVER TIME!</div>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+// --- ゲーム状態管理 ---
+let gameState = "TITLE";
+let score = 0;
+let hiScore = localStorage.getItem("pin_hi_score") || 0;
+let ballCount = 3; // 残りボール数
+let medalCount = 0; // 獲得メダル数
+let lastTime = 0;
+let shake = 0; // 画面揺れ
+let comboCount = 0;
+let feverTimeActive = false;
+let feverTimeRemaining = 0;
+
+// --- 物理演算設定 ---
+const GRAVITY = { x: 0, y: 300 }; // 重力 (pixels/s^2)
+const BOUNCE = 0.7; // 反発係数 (0.0:全く跳ねない, 1.0:完全に跳ねる)
+const FRICTION = 0.99; // 摩擦 (1.0:なし, 0.9:強い)
+const BALL_RADIUS = 8;
+const FLIPPER_POWER = 400; // フリッパーの反発力
+const FLIPPER_ANGLE_RANGE = Math.PI / 4; // フリッパーの可動範囲
+const FLIPPER_LENGTH = 50;
+
+// --- ゲームオブジェクト ---
+const playerBall = {
+    x: canvas.width / 2,
+    y: canvas.height - 100, // 初期位置を下の方に
+    vx: 0, vy: 0, // 速度
+    radius: BALL_RADIUS,
+    isHeld: false, // スリングショット中か
+    holdStartX: 0, holdStartY: 0,
+    holdCurrentX: 0, holdCurrentY: 0,
+    isMoving: false, // ボールが動いているか
+};
+
+let walls = []; // ピンボール台の壁
+let flippers = []; // フリッパー
+let bumpers = []; // 当たると跳ねるバンパー
+let medalHoppers = []; // メダル投入口
+let medals = []; // 落ちてくるメダル
+let medalDropArea = { x: 0, y: canvas.height - 30, w: canvas.width, h: 30 }; // メダル獲得エリア
+
+// --- UI要素の参照 ---
+const scoreDisplay = document.getElementById("score");
+const hiScoreDisplay = document.getElementById("hi-score");
+const ballCountDisplay = document.getElementById("ball-count");
+const medalCountDisplay = document.getElementById("medal-count");
+const comboDisplay = document.getElementById("combo");
+const feverOverlay = document.getElementById("fever-overlay");
+
+// --- 初期化関数 ---
+function initGameObjects() {
+    walls = [];
+    flippers = [];
+    bumpers = [];
+    medalHoppers = [];
+    medals = [];
+
+    // ピンボール台の外壁 (線分として定義)
+    // 左壁
+    walls.push({ x1: 20, y1: 0, x2: 20, y2: canvas.height - 50 });
+    // 右壁
+    walls.push({ x1: canvas.width - 20, y1: 0, x2: canvas.width - 20, y2: canvas.height - 50 });
+    // 上壁
+    walls.push({ x1: 20, y1: 0, x2: canvas.width - 20, y2: 0 });
+    // フリッパーエリアの斜め壁 (仮)
+    walls.push({ x1: 20, y1: canvas.height - 200, x2: canvas.width/2 - FLIPPER_LENGTH - 10, y2: canvas.height - 50 });
+    walls.push({ x1: canvas.width - 20, y1: canvas.height - 200, x2: canvas.width/2 + FLIPPER_LENGTH + 10, y2: canvas.height - 50 });
+
+
+    // フリッパー (pivotX, pivotY, length, initialAngle, maxAngle, direction(-1:左, 1:右))
+    flippers.push({
+        pivotX: canvas.width / 2 - 60, pivotY: canvas.height - 70,
+        length: FLIPPER_LENGTH, angle: 0, targetAngle: 0, dir: -1, isActive: false
+    });
+    flippers.push({
+        pivotX: canvas.width / 2 + 60, pivotY: canvas.height - 70,
+        length: FLIPPER_LENGTH, angle: 0, targetAngle: 0, dir: 1, isActive: false
+    });
+
+    // バンパー (x, y, radius, type)
+    bumpers.push({ x: canvas.width / 2, y: 150, radius: 25, type: 'normal', score: 100 });
+    bumpers.push({ x: canvas.width / 4, y: 250, radius: 20, type: 'normal', score: 50 });
+    bumpers.push({ x: canvas.width * 3 / 4, y: 250, radius: 20, type: 'normal', score: 50 });
+    
+    // メダルホッパー (x, y, w, h, medalCount, isActivated)
+    // 例として、画面上部に3つ設置
+    medalHoppers.push({ x: 50, y: 50, w: 30, h: 20, medalSpawnCount: 1, lastActivation: 0 });
+    medalHoppers.push({ x: canvas.width / 2 - 15, y: 30, w: 30, h: 20, medalSpawnCount: 2, lastActivation: 0 }); // 中央はレア
+    medalHoppers.push({ x: canvas.width - 80, y: 50, w: 30, h: 20, medalSpawnCount: 1, lastActivation: 0 });
+}
+
+function resetBall() {
+    playerBall.x = canvas.width / 2;
+    playerBall.y = canvas.height - 100;
+    playerBall.vx = 0;
+    playerBall.vy = 0;
+    playerBall.isHeld = false;
+    playerBall.isMoving = false;
+    comboCount = 0; // ボールを失ったらコンボリセット
+    updateUI();
+}
+
+function startGame() {
+    document.getElementById("start-screen").style.display = "none";
+    gameState = "PLAY";
+    score = 0;
+    ballCount = 3;
+    medalCount = 0;
+    hiScoreDisplay.innerText = hiScore;
+    initGameObjects();
+    resetBall();
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+}
+
+function endGame(win) {
+    gameState = "RESULT";
+    if (score > hiScore) {
+        hiScore = score;
+        localStorage.setItem("pin_hi_score", hiScore);
+    }
+    document.getElementById("result-screen").style.display = "flex";
+    document.getElementById("result-msg").innerText = win ? "MISSION COMPLETE!" : "GAME OVER";
+    document.getElementById("final-stats").innerHTML = `FINAL SCORE: ${score}<br>HI-SCORE: ${hiScore}<br>MEDALS: ${medalCount}`;
+}
+
+// --- 更新ロジック ---
+function update(dt, now) {
+    if (shake > 0) shake -= dt * 25;
+    if (feverTimeActive) {
+        feverTimeRemaining -= dt;
+        if (feverTimeRemaining <= 0) {
+            feverTimeActive = false;
+            feverOverlay.classList.remove('active');
+        }
+    }
+
+    // フリッパーの状態更新
+    flippers.forEach(flipper => {
+        let targetRad = flipper.isActive ? flipper.dir * FLIPPER_ANGLE_RANGE : 0;
+        flipper.angle += (targetRad - flipper.angle) * 10 * dt; // スムーズに動かす
+    });
+
+    // ボールがホールドされていない場合のみ物理演算
+    if (!playerBall.isHeld) {
+        playerBall.vx += GRAVITY.x * dt;
+        playerBall.vy += GRAVITY.y * dt;
+
+        playerBall.x += playerBall.vx * dt;
+        playerBall.y += playerBall.vy * dt;
+        
+        // 速度が非常に小さい場合、停止とみなす
+        if (playerBall.isMoving && Math.abs(playerBall.vx) < 5 && Math.abs(playerBall.vy) < 5) {
+            playerBall.isMoving = false;
+        } else if ((Math.abs(playerBall.vx) >= 5 || Math.abs(playerBall.vy) >= 5)) {
+            playerBall.isMoving = true;
+        }
+
+        // 摩擦
+        playerBall.vx *= FRICTION;
+        playerBall.vy *= FRICTION;
+
+        // 壁との衝突判定
+        walls.forEach(wall => {
+            handleCircleLineCollision(playerBall, wall, dt);
+        });
+
+        // バンパーとの衝突判定
+        bumpers.forEach(bumper => {
+            const distSq = (playerBall.x - bumper.x)**2 + (playerBall.y - bumper.y)**2;
+            const radiiSum = playerBall.radius + bumper.radius;
+            if (distSq < radiiSum**2) {
+                // 衝突処理 (円-円)
+                const angle = Math.atan2(playerBall.y - bumper.y, playerBall.x - bumper.x);
+                const overlap = radiiSum - Math.sqrt(distSq);
+                playerBall.x += overlap * Math.cos(angle);
+                playerBall.y += overlap * Math.sin(angle);
+
+                let normalX = (playerBall.x - bumper.x) / radiiSum;
+                let normalY = (playerBall.y - bumper.y) / radiiSum;
+                let dotProduct = playerBall.vx * normalX + playerBall.vy * normalY;
+                
+                playerBall.vx = (playerBall.vx - 2 * dotProduct * normalX) * BOUNCE;
+                playerBall.vy = (playerBall.vy - 2 * dotProduct * normalY) * BOUNCE;
+
+                addScore(bumper.score * (feverTimeActive ? 2 : 1));
+                comboCount++;
+                shake = 10;
+                // バンパーのエフェクト
+            }
+        });
+
+        // フリッパーとの衝突判定
+        flippers.forEach(flipper => {
+            const flipperEndX = flipper.pivotX + Math.cos(flipper.angle + (flipper.dir === 1 ? Math.PI : 0)) * flipper.length;
+            const flipperEndY = flipper.pivotY + Math.sin(flipper.angle + (flipper.dir === 1 ? Math.PI : 0)) * flipper.length;
+            const flipperLine = { x1: flipper.pivotX, y1: flipper.pivotY, x2: flipperEndX, y2: flipperEndY };
+            
+            // ボールとフリッパーの線分との衝突判定
+            handleCircleLineCollision(playerBall, flipperLine, dt, true, flipper.isActive ? FLIPPER_POWER : 0);
+        });
+
+        // メダルホッパーとの衝突判定
+        medalHoppers.forEach(hopper => {
+            if (playerBall.x + playerBall.radius > hopper.x && playerBall.x - playerBall.radius < hopper.x + hopper.w &&
+                playerBall.y + playerBall.radius > hopper.y && playerBall.y - playerBall.radius < hopper.y + hopper.h) {
+                
+                // ボールをホッパーに入ったと判定
+                if (now - hopper.lastActivation > 500) { // 短時間での連続発動を防ぐ
+                    addScore(500 * (feverTimeActive ? 2 : 1));
+                    comboCount++;
+                    shake = 15;
+                    startFeverTime(); // ホッパーに入れるとフィーバータイムのチャンス！
+                    
+                    // メダル排出
+                    for (let i = 0; i < hopper.medalSpawnCount * (feverTimeActive ? 3 : 1); i++) {
+                        setTimeout(() => {
+                            medals.push({
+                                x: hopper.x + hopper.w / 2 + (Math.random() - 0.5) * hopper.w,
+                                y: hopper.y + hopper.h,
+                                vx: (Math.random() - 0.5) * 50,
+                                vy: Math.random() * 50,
+                                radius: 5,
+                                type: (Math.random() < 0.1) ? 'gold' : 'normal', // 10%でゴールドメダル
+                                score: (Math.random() < 0.1) ? 500 : 100 // ゴールドメダルは高得点
+                            });
+                        }, i * 50); // 連続で排出
+                    }
+                    hopper.lastActivation = now;
+                }
+                // ホッパーに入ったらボールをリセット
+                resetBall();
+            }
+        });
+
+        // ボールが画面下部に落ちたか
+        if (playerBall.y - playerBall.radius > canvas.height) {
+            ballCount--;
+            if (ballCount <= 0) {
+                endGame(false);
+            } else {
+                resetBall();
+            }
+        }
+    }
+
+    // メダルの物理演算と獲得判定
+    medals.forEach((medal, i) => {
+        medal.vx += GRAVITY.x * dt;
+        medal.vy += GRAVITY.y * dt;
+        
+        medal.x += medal.vx * dt;
+        medal.y += medal.vy * dt;
+
+        medal.vx *= FRICTION;
+        medal.vy *= FRICTION;
+
+        // メダル同士の衝突 (簡易版)
+        for (let j = i + 1; j < medals.length; j++) {
+            const otherMedal = medals[j];
+            const distSq = (medal.x - otherMedal.x)**2 + (medal.y - otherMedal.y)**2;
+            const radiiSum = medal.radius + otherMedal.radius;
+            if (distSq < radiiSum**2) {
+                const angle = Math.atan2(medal.y - otherMedal.y, medal.x - otherMedal.x);
+                const overlap = radiiSum - Math.sqrt(distSq);
+                medal.x += overlap * 0.5 * Math.cos(angle);
+                medal.y += overlap * 0.5 * Math.sin(angle);
+                otherMedal.x -= overlap * 0.5 * Math.cos(angle);
+                otherMedal.y -= overlap * 0.5 * Math.sin(angle);
+
+                let normalX = (medal.x - otherMedal.x) / radiiSum;
+                let normalY = (medal.y - otherMedal.y) / radiiSum;
+                let dotProduct1 = medal.vx * normalX + medal.vy * normalY;
+                let dotProduct2 = otherMedal.vx * normalX + otherMedal.vy * normalY;
+                
+                medal.vx = (medal.vx - 2 * dotProduct1 * normalX) * BOUNCE;
+                medal.vy = (medal.vy - 2 * dotProduct1 * normalY) * BOUNCE;
+                otherMedal.vx = (otherMedal.vx - 2 * dotProduct2 * normalX) * BOUNCE;
+                otherMedal.vy = (otherMedal.vy - 2 * dotProduct2 * normalY) * BOUNCE;
+            }
+        }
+        // 壁との衝突 (メダル用、簡易版)
+        if (medal.x - medal.radius < 20 || medal.x + medal.radius > canvas.width - 20) medal.vx *= -BOUNCE;
+        if (medal.y - medal.radius < 0) medal.vy *= -BOUNCE;
+
+        // メダル獲得エリアに落ちたか
+        if (medal.y > medalDropArea.y && medal.x > medalDropArea.x && medal.x < medalDropArea.x + medalDropArea.w) {
+            medalCount++;
+            addScore(medal.score * (feverTimeActive ? 2 : 1));
+            medals.splice(i, 1); // 獲得したメダルを削除
+        }
+    });
+
+    updateUI();
+}
+
+// 円と線分の衝突判定・応答
+// isFlipper: フリッパーかどうかのフラグ
+// power: フリッパーが動的に与える力 (フリッパーの場合のみ使用)
+function handleCircleLineCollision(circle, line, dt, isFlipper = false, power = 0) {
+    const dx = line.x2 - line.x1;
+    const dy = line.y2 - line.y1;
+    const lenSq = dx*dx + dy*dy;
+    const t = ((circle.x - line.x1) * dx + (circle.y - line.y1) * dy) / lenSq;
+    
+    let closestX, closestY;
+    if (t < 0) {
+        closestX = line.x1;
+        closestY = line.y1;
+    } else if (t > 1) {
+        closestX = line.x2;
+        closestY = line.y2;
+    } else {
+        closestX = line.x1 + t * dx;
+        closestY = line.y1 + t * dy;
+    }
+
+    const distSq = (circle.x - closestX)**2 + (circle.y - closestY)**2;
+
+    if (distSq < circle.radius**2) {
+        // 衝突が発生
+        const dist = Math.sqrt(distSq);
+        const overlap = circle.radius - dist;
+        const normalX = (circle.x - closestX) / dist;
+        const normalY = (circle.y - closestY) / dist;
+
+        // ボールを押し出す
+        circle.x += normalX * overlap;
+        circle.y += normalY * overlap;
+
+        // 反射
+        let dotProduct = circle.vx * normalX + circle.vy * normalY;
+        circle.vx = (circle.vx - 2 * dotProduct * normalX) * BOUNCE;
+        circle.vy = (circle.vy - 2 * dotProduct * normalY) * BOUNCE;
+
+        if (isFlipper && power > 0) {
+            // フリッパーの場合、追加の力を与える
+            const forceAngle = Math.atan2(line.y2 - line.y1, line.x2 - line.x1) + (Math.PI / 2); // フリッパーの法線方向
+            circle.vx += Math.cos(forceAngle) * power;
+            circle.vy += Math.sin(forceAngle) * power;
+        }
+
+        addScore(10 * (feverTimeActive ? 2 : 1)); // 壁衝突でもスコア
+        comboCount++;
+        shake = 5;
+    }
+}
+
+
+function addScore(points) {
+    score += points * getMultiplier();
+}
+
+function getMultiplier() {
+    return Math.min(5, Math.floor(comboCount / 5) + 1); // 5コンボごとに倍率+1, 最大x5
+}
+
+function startFeverTime() {
+    if (!feverTimeActive) {
+        feverTimeActive = true;
+        feverTimeRemaining = 10; // 10秒間フィーバータイム
+        feverOverlay.classList.add('active');
+        // 効果音やBGM変更など
+    } else {
+        feverTimeRemaining += 5; // フィーバータイム中に再度発動すると延長
+    }
+}
+
+// --- 描画系 ---
+function draw() {
+    ctx.save();
+    if (shake > 0) ctx.translate(Math.random()*shake - shake/2, Math.random()*shake - shake/2);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#000"; // 背景色
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // ピンボール台の外壁
+    ctx.strokeStyle = "#0f0";
+    ctx.lineWidth = 4;
+    walls.forEach(wall => {
+        ctx.beginPath();
+        ctx.moveTo(wall.x1, wall.y1);
+        ctx.lineTo(wall.x2, wall.y2);
+        ctx.stroke();
+    });
+
+    // フリッパー
+    flippers.forEach(flipper => {
+        ctx.save();
+        ctx.translate(flipper.pivotX, flipper.pivotY);
+        ctx.rotate(flipper.angle);
+        ctx.fillStyle = "#ff0";
+        ctx.fillRect(0, -5, flipper.length, 10); // フリッパー本体
+        ctx.restore();
+    });
+
+    // バンパー
+    bumpers.forEach(bumper => {
+        ctx.fillStyle = "#f0f";
+        ctx.beginPath();
+        ctx.arc(bumper.x, bumper.y, bumper.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#000";
+        ctx.font = "bold 10px 'Press Start 2P'";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(bumper.score, bumper.x, bumper.y);
+    });
+
+    // メダルホッパー
+    medalHoppers.forEach(hopper => {
+        ctx.fillStyle = "rgba(0, 200, 255, 0.7)";
+        ctx.fillRect(hopper.x, hopper.y, hopper.w, hopper.h);
+        ctx.strokeStyle = "#0af";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(hopper.x, hopper.y, hopper.w, hopper.h);
+        ctx.fillStyle = "#000";
+        ctx.font = "bold 10px 'Press Start 2P'";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("MEDAL", hopper.x + hopper.w/2, hopper.y + hopper.h/2);
+    });
+
+    // メダル獲得エリア
+    ctx.fillStyle = "rgba(50, 50, 50, 0.5)";
+    ctx.fillRect(medalDropArea.x, medalDropArea.y, medalDropArea.w, medalDropArea.h);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 10px 'Press Start 2P'";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("MEDAL GET!", medalDropArea.x + medalDropArea.w/2, medalDropArea.y + medalDropArea.h/2);
+
+    // メダル
+    medals.forEach(medal => {
+        ctx.fillStyle = medal.type === 'gold' ? "#ffc107" : "#c0c0c0";
+        ctx.beginPath();
+        ctx.arc(medal.x, medal.y, medal.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#888";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    });
+
+
+    // ボール
+    ctx.fillStyle = "#00f";
+    ctx.beginPath();
+    ctx.arc(playerBall.x, playerBall.y, playerBall.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // スリングショットのガイド線
+    if (playerBall.isHeld) {
+        ctx.strokeStyle = "#f00";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(playerBall.holdStartX, playerBall.holdStartY);
+        ctx.lineTo(playerBall.holdCurrentX, playerBall.holdCurrentY);
+        ctx.stroke();
+    }
+
+    ctx.restore(); // 画面揺れのトランスフォームをリセット
+}
+
+// --- UI更新 ---
+function updateUI() {
+    scoreDisplay.innerText = score;
+    hiScoreDisplay.innerText = hiScore;
+    ballCountDisplay.innerText = ballCount;
+    medalCountDisplay.innerText = medalCount;
+    comboDisplay.innerText = "x" + getMultiplier().toFixed(1);
+}
+
+// --- 操作系 (スリングショット & フリッパー) ---
+canvas.addEventListener("touchstart", handleTouchStart, {passive: false});
+canvas.addEventListener("touchmove", handleTouchMove, {passive: false});
+canvas.addEventListener("touchend", handleTouchEnd, {passive: false});
+
+function handleTouchStart(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const touchX = (touch.clientX - rect.left) * (canvas.width / rect.width);
+    const touchY = (touch.clientY - rect.top) * (canvas.height / rect.height);
+
+    // ボールの近くをタッチしたらスリングショット開始
+    const dist = Math.sqrt((touchX - playerBall.x)**2 + (touchY - playerBall.y)**2);
+    if (!playerBall.isMoving && dist < 40) {
+        playerBall.isHeld = true;
+        playerBall.holdStartX = playerBall.x;
+        playerBall.holdStartY = playerBall.y;
+        playerBall.holdCurrentX = touchX;
+        playerBall.holdCurrentY = touchY;
+    }
+
+    // 画面の左右をタッチしてフリッパー操作
+    if (touchX < canvas.width / 2) {
+        flippers[0].isActive = true;
+    } else {
+        flippers[1].isActive = true;
+    }
+}
+
+function handleTouchMove(e) {
+    e.preventDefault();
+    if (playerBall.isHeld) {
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        playerBall.holdCurrentX = (touch.clientX - rect.left) * (canvas.width / rect.width);
+        playerBall.holdCurrentY = (touch.clientY - rect.top) * (canvas.height / rect.height);
+    }
+}
+
+function handleTouchEnd(e) {
+    e.preventDefault();
+    if (playerBall.isHeld) {
+        // 引っ張った強さに応じて発射
+        const dx = playerBall.holdStartX - playerBall.holdCurrentX;
+        const dy = playerBall.holdStartY - playerBall.holdCurrentY;
+        playerBall.vx = dx * 5; // 感度調整
+        playerBall.vy = dy * 5;
+        playerBall.isHeld = false;
+        playerBall.isMoving = true;
+    }
+
+    // 全てのタッチが離れたらフリッパーを戻す（または離れた側の判定）
+    if (e.touches.length === 0) {
+        flippers[0].isActive = false;
+        flippers[1].isActive = false;
+    } else {
+        // 残っているタッチの位置で再判定
+        let leftActive = false;
+        let rightActive = false;
+        for(let i=0; i<e.touches.length; i++){
+            const rect = canvas.getBoundingClientRect();
+            const tx = (e.touches[i].clientX - rect.left) * (canvas.width / rect.width);
+            if(tx < canvas.width/2) leftActive = true;
+            else rightActive = true;
+        }
+        flippers[0].isActive = leftActive;
+        flippers[1].isActive = rightActive;
+    }
+}
+
+// --- 特殊機能 ---
+function enterCode() {
+    const code = prompt("ENTER PASSCODE:");
+    if (code === "7777") {
+        medalCount += 777;
+        startFeverTime();
+        alert("LUCKY! SEVENS ACTIVATED");
+    } else if (code === "1117") {
+        localStorage.clear();
+        alert("DATA RESET");
+        location.reload();
+    }
+}
+
+function gameLoop(timestamp) {
+    if (gameState !== "PLAY") return;
+    let dt = (timestamp - lastTime) / 1000;
+    if (dt > 0.1) dt = 0.1;
+    lastTime = timestamp;
+
+    update(dt, timestamp);
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+// 初期UI表示
+updateUI();
+
+</script>
+</body>
+</html>
