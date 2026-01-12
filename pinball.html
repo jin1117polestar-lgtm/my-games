@@ -8,154 +8,39 @@
     <title>NEON PINBALL RUSH</title>
     <style>
         html, body {
-            background: #000;
-            color: #fff;
-            text-align: center;
-            font-family: 'Press Start 2P', cursive, 'Courier New', sans-serif;
-            overflow: hidden;
-            touch-action: none;
-            margin: 0;
-            width: 100%;
-            height: 100%;
-            -webkit-user-select: none;
-            user-select: none;
-            overscroll-behavior: contain;
+            background: #000; color: #fff; text-align: center;
+            font-family: 'Press Start 2P', cursive, sans-serif;
+            overflow: hidden; touch-action: none; margin: 0; width: 100%; height: 100%;
         }
         @font-face {
             font-family: 'Press Start 2P';
             src: url('https://fonts.gstatic.com/s/pressstart2p/v14/8Lg6Z-HLhE9SL1O_Q6HNCYl_F4M_7k8.woff2') format('woff2');
-            font-weight: 400;
-            font-style: normal;
         }
-
         #game-container {
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            position: relative;
-            max-width: 600px;
-            margin: 0 auto;
-            border: 2px solid #333;
-            box-sizing: border-box;
-            box-shadow: 0 0 20px rgba(0,255,255,0.5); /* 全体的なネオン光 */
+            display: flex; flex-direction: column; height: 100vh;
+            max-width: 600px; margin: 0 auto; position: relative;
+            box-shadow: 0 0 20px rgba(0,255,255,0.5);
         }
         .ui-top {
-            height: 60px;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-around;
-            align-items: center;
-            background: rgba(17, 17, 17, 0.8);
-            color: #0f0;
-            font-size: 10px;
-            border-bottom: 1px solid #333;
-            padding-top: env(safe-area-inset-top);
-            z-index: 10;
-            box-shadow: 0 2px 10px rgba(0,255,0,0.3); /* ネオン光 */
+            height: 60px; display: flex; justify-content: space-around; align-items: center;
+            background: rgba(17, 17, 17, 0.9); color: #0f0; font-size: 10px;
+            border-bottom: 2px solid #333; z-index: 10;
         }
-        #screen-area {
-            position: relative;
-            flex-grow: 1;
-            width: 100%;
-            background: #000;
-            overflow: hidden;
-        }
-        canvas {
-            display: block;
-            margin: 0 auto;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            background-color: #0d011c; /* 暗い紫系の背景 */
-        }
+        canvas { display: block; width: 100%; height: 100%; background-color: #0d011c; }
         .overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.95); /* より暗く */
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 100;
-            color: #0f0;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 100;
         }
         button {
-            padding: 12px 30px;
-            font-size: 18px;
-            background: linear-gradient(45deg, #00ff00, #00aa00); /* グラデーション */
-            border: none;
-            font-weight: bold;
-            border-radius: 30px;
-            margin: 8px;
-            cursor: pointer;
-            font-family: 'Press Start 2P', cursive, sans-serif;
-            box-shadow: 0 4px #007700, 0 0 15px rgba(0,255,0,0.7); /* ネオンシャドウ */
-            transition: all 0.1s ease;
-            color: #000;
+            padding: 15px 30px; font-size: 18px; background: #0f0; border: none;
+            border-radius: 30px; margin: 10px; cursor: pointer;
+            font-family: 'Press Start 2P'; box-shadow: 0 4px #0a0;
         }
-        button:active {
-            transform: translateY(2px);
-            box-shadow: 0 2px #007700, 0 0 10px rgba(0,255,0,0.5);
-        }
-        .code-btn {
-            background: linear-gradient(45deg, #333, #111);
-            color: #888;
-            font-size: 11px;
-            padding: 8px 20px;
-            margin-top: 15px;
-            border-radius: 5px;
-            box-shadow: 0 3px #000, 0 0 8px rgba(136,136,136,0.3);
-        }
-        .code-btn:active {
-            transform: translateY(1px);
-            box-shadow: 0 2px #000, 0 0 5px rgba(136,136,136,0.2);
-        }
-
         #fever-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 0, 255, 0.2);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: #ff0;
-            font-size: 3em;
-            font-weight: bold;
-            text-shadow: 0 0 10px #f0f, 0 0 20px #f0f, 0 0 30px #f0f; /* 強化されたネオンテキスト */
-            z-index: 99;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s ease-in-out;
-            pointer-events: none;
-        }
-        #fever-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
-        .stat-val {
-            color: #fff;
-            font-size: 12px;
-            text-shadow: 0 0 5px rgba(255,255,255,0.7); /* UI数値にも光沢 */
-        }
-        .pixel-text {
-            font-family: 'Press Start 2P', cursive, sans-serif;
-            font-size: 2.2em; /* 少し大きく */
-            color: #00ffff; /* シアン系のネオンカラー */
-            margin: 0;
-            letter-spacing: 3px; /* 広めに */
-            text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff;
-        }
-        #title-subtext {
-            color: #ff00ff; /* マゼンタ系のネオンカラー */
-            font-size: 13px;
-            margin-top: 8px;
-            text-shadow: 0 0 8px #ff00ff;
+            position: absolute; top: 30%; width: 100%; color: #ff0;
+            font-size: 2.5em; text-shadow: 0 0 20px #f0f; display: none;
+            pointer-events: none; z-index: 99;
         }
     </style>
 </head>
@@ -163,30 +48,25 @@
 
 <div id="game-container">
     <div class="ui-top">
-        <div>SCORE <br><span id="score" class="stat-val">0</span></div>
-        <div>HI-SCORE <br><span id="hi-score" class="stat-val">0</span></div>
-        <div>BALL <br><span id="ball-count" class="stat-val">3</span></div>
-        <div>MEDAL <br><span id="medal-count" class="stat-val">0</span></div>
-        <div>COMBO <br><span id="combo" class="stat-val" style="color:#ff0">x1</span></div>
+        <div>SCORE <br><span id="score">0</span></div>
+        <div>MEDALS <br><span id="medals">0</span></div>
+        <div>BALLS <br><span id="balls">3</span></div>
+        <div>COMBO <br><span id="combo">x1</span></div>
     </div>
     
-    <div id="screen-area">
+    <div id="screen-area" style="position:relative; flex-grow:1;">
         <canvas id="gameCanvas" width="400" height="700"></canvas>
-
-        <div id="start-screen" class="overlay">
-            <h1 class="pixel-text">NEON PINBALL</h1>
-            <p id="title-subtext">RUSH EDITION</p>
-            <button onclick="startGame()">START GAME</button>
-            <button class="code-btn" onclick="enterCode()">ENTER CODE</button>
-        </div>
-
-        <div id="result-screen" class="overlay" style="display:none">
-            <h2 id="result-msg" class="pixel-text">GAME OVER</h2>
-            <div id="final-stats" style="margin-bottom:20px; line-height: 1.8; font-size:14px; color:#0f0; text-shadow: 0 0 5px #0f0;"></div>
-            <button onclick="location.reload()">BACK TO TITLE</button>
-        </div>
-
         <div id="fever-overlay">FEVER TIME!</div>
+        <div id="start-screen" class="overlay">
+            <h1 style="color:#0ff; text-shadow:0 0 10px #0ff;">NEON PINBALL</h1>
+            <button onclick="startGame()">MISSION START</button>
+            <button style="background:#333; color:#888; font-size:10px;" onclick="enterCode()">ENTER CODE</button>
+        </div>
+        <div id="result-screen" class="overlay" style="display:none">
+            <h2 style="color:#f0f;">GAME OVER</h2>
+            <div id="final-stats" style="margin-bottom:20px;"></div>
+            <button onclick="location.reload()">RETRY</button>
+        </div>
     </div>
 </div>
 
@@ -197,581 +77,288 @@ const ctx = canvas.getContext("2d");
 // --- ゲーム状態管理 ---
 let gameState = "TITLE";
 let score = 0;
-let hiScore = localStorage.getItem("neon_pin_hi_score") || 0;
 let ballCount = 3;
 let medalCount = 0;
 let lastTime = 0;
 let shake = 0;
 let comboCount = 0;
-let feverTimeActive = false;
-let feverTimeRemaining = 0;
+let feverActive = false;
+let feverTimer = 0;
 
-// --- 物理演算設定 ---
-const GRAVITY = { x: 0, y: 300 }; // 重力 (pixels/s^2)
-const BOUNCE = 0.75; // 反発係数 (少し高く)
-const FRICTION = 0.995; // 摩擦 (少し弱くして転がりやすく)
-const BALL_RADIUS = 8;
-const FLIPPER_POWER = 450; // フリッパーの反発力強化
-const FLIPPER_ANGLE_RANGE = Math.PI / 3.5; // フリッパーの可動範囲を広げる
-const FLIPPER_LENGTH = 60; // フリッパーを長く
-const PLUNGER_MAX_POWER = 600; // プランジャーの最大発射力
-const PLUNGER_PULL_SPEED = 300; // プランジャーが引っ張られる速度
+// --- 物理定数 ---
+const GRAVITY = { x: 0, y: 350 };
+const BOUNCE = 0.75;
+const FRICTION = 0.995;
+const BALL_RAD = 8;
+const FLIPPER_POWER = 500;
+const PLUNGER_MAX = 700;
 
-// --- ゲームオブジェクト ---
-const playerBall = {
-    x: 0, y: 0, // 初期位置はプランジャー内に設定
-    vx: 0, vy: 0,
-    radius: BALL_RADIUS,
-    isHeld: false, // スリングショット中か
-    isPlungerPulled: false, // プランジャーが引かれているか
-    plungerPullAmount: 0, // プランジャーが引かれた量 (0-1)
-    isMoving: false, // ボールが動いているか (速度が一定以上の場合)
-};
+// --- オブジェクト ---
+const ball = { x: 375, y: 630, vx: 0, vy: 0, isMoving: false, pull: 0, isPulling: false };
+let walls = [], flippers = [], bumpers = [], hoppers = [], medals = [];
+let slot = { val: [0, 0, 0], spinning: [false, false, false], timer: [0, 0, 0], active: false };
 
-// ピンボール台のビジュアル定義 (描画用)
-const pinballTableDesign = {
-    // 外枠 (パスで描画)
-    outerPath: new Path2D(),
-    // レーンやバンパー、ホッパーなどの色や位置
-    colors: {
-        bgMain: '#0d011c', // 本体背景
-        bgDark: '#0a001a', // 暗い部分
-        neonGreen: '#00ff00',
-        neonBlue: '#00ffff',
-        neonPink: '#ff00ff',
-        neonYellow: '#ffff00',
-        metalDark: '#333333',
-        metalLight: '#555555',
-        ball: '#00ccff', // ボール色
-    },
-    plungerLaneX: canvas.width - 40,
-    plungerLaneWidth: 30,
-    plungerStartX: canvas.width - 25,
-    plungerStartY: canvas.height - 100, // 初期ボール位置
-};
+function initGame() {
+    walls = [
+        // 左外壁
+        {x1: 20, y1: 0, x2: 20, y2: 550},
+        {x1: 20, y1: 550, x2: 120, y2: 660},
+        // 上壁
+        {x1: 20, y1: 0, x2: 340, y2: 0},
+        // 右上カーブ（隙間を埋める）
+        {x1: 340, y1: 0, x2: 380, y2: 40},
+        {x1: 380, y1: 40, x2: 380, y2: 630},
+        // 発射レーン内壁（出口開放：y=120まで）
+        {x1: 350, y1: 120, x2: 350, y2: 630},
+        // 右下傾斜
+        {x1: 350, y1: 550, x2: 280, y2: 660}
+    ];
 
+    flippers = [
+        {px: 130, py: 670, len: 70, angle: 0, side: -1, active: false},
+        {px: 270, py: 670, len: 70, angle: 0, side: 1, active: false}
+    ];
 
-let walls = []; // ピンボール台の壁 (衝突判定用)
-let flippers = []; // フリッパー
-let bumpers = []; // 当たると跳ねるバンパー
-let medalHoppers = []; // メダル投入口
-let medals = []; // 落ちてくるメダル
-let medalDropArea = { x: 0, y: canvas.height - 30, w: canvas.width, h: 30 }; // メダル獲得エリア
-let digitalSlot = {
-    x: canvas.width / 2, y: 200, w: 120, h: 40,
-    values: [0, 0, 0], // 現在の表示数字
-    spinning: [false, false, false], // 各リールが回転中か
-    spinTime: [0, 0, 0], // 各リールの残り回転時間
-    spinDuration: 1.5, // 回転時間 (秒)
-    lastActivation: 0, // 最終発動時刻
-    symbols: [0, 1, 2, 3, 4, 5, 6, 7], // 777を揃えやすくするため7も複数に
-    targetHitCount: 0, // スロット発動に必要なヒット数
-};
+    bumpers = [
+        {x: 200, y: 120, r: 25, score: 100, color: '#0ff'},
+        {x: 100, y: 220, r: 20, score: 50, color: '#0f0'},
+        {x: 300, y: 220, r: 20, score: 50, color: '#0f0'},
+        {x: 200, y: 320, r: 15, score: 30, color: '#f0f'}
+    ];
 
-
-// --- UI要素の参照 ---
-const scoreDisplay = document.getElementById("score");
-const hiScoreDisplay = document.getElementById("hi-score");
-const ballCountDisplay = document.getElementById("ball-count");
-const medalCountDisplay = document.getElementById("medal-count");
-const comboDisplay = document.getElementById("combo");
-const feverOverlay = document.getElementById("fever-overlay");
-
-// --- 初期化関数 ---
-function initGameObjects() {
-    walls = [];
-    flippers = [];
-    bumpers = [];
-    medalHoppers = [];
-    medals = [];
-
-    // ピンボール台の外壁 (線分として定義)
-    // 左壁 (下部はフリッパーエリアに続く斜線)
-    walls.push({ x1: 20, y1: 0, x2: 20, y2: canvas.height - 180 });
-    walls.push({ x1: 20, y1: canvas.height - 180, x2: canvas.width/2 - FLIPPER_LENGTH - 10, y2: canvas.height - 50 });
-    // 右壁 (下部はプランジャーレーン)
-    walls.push({ x1: canvas.width - 20, y1: 0, x2: canvas.width - 20, y2: canvas.height - 100 }); // プランジャー発射口まで
-    walls.push({ x1: canvas.width - 20, y1: canvas.height - 100, x2: canvas.width - 40, y2: canvas.height - 100 }); // プランジャー上部
-    walls.push({ x1: canvas.width - 40, y1: canvas.height - 100, x2: canvas.width - 40, y2: canvas.height - 50 }); // プランジャーレーン内壁
-
-    // 上壁
-    walls.push({ x1: 20, y1: 0, x2: canvas.width - 40, y2: 0 }); // プランジャーレーン手前まで
-
-    // 中央の障害物やレーン
-    walls.push({ x1: canvas.width/2 - 80, y1: 100, x2: canvas.width/2 - 40, y2: 150 });
-    walls.push({ x1: canvas.width/2 + 80, y1: 100, x2: canvas.width/2 + 40, y2: 150 });
-
-
-    // フリッパー (pivotX, pivotY, length, initialAngle, maxAngle, direction(-1:左, 1:右))
-    flippers.push({
-        pivotX: canvas.width / 2 - 75, pivotY: canvas.height - 70,
-        length: FLIPPER_LENGTH, angle: 0, targetAngle: 0, dir: -1, isActive: false
-    });
-    flippers.push({
-        pivotX: canvas.width / 2 + 75, pivotY: canvas.height - 70,
-        length: FLIPPER_LENGTH, angle: 0, targetAngle: 0, dir: 1, isActive: false
-    });
-
-    // バンパー (x, y, radius, type, score) - 見た目を円形に強化
-    bumpers.push({ x: canvas.width / 2, y: 100, radius: 25, type: 'neon', score: 100 });
-    bumpers.push({ x: canvas.width / 4, y: 180, radius: 20, type: 'neon', score: 50 });
-    bumpers.push({ x: canvas.width * 3 / 4, y: 180, radius: 20, type: 'neon', score: 50 });
-    bumpers.push({ x: canvas.width / 3, y: 300, radius: 15, type: 'neon', score: 30 });
-    bumpers.push({ x: canvas.width * 2 / 3, y: 300, radius: 15, type: 'neon', score: 30 });
-
-    // メダルホッパー (x, y, w, h, medalCount, lastActivation, score)
-    medalHoppers.push({ x: 50, y: 50, w: 40, h: 30, medalSpawnCount: 1, lastActivation: 0, score: 200 });
-    medalHoppers.push({ x: canvas.width - 90, y: 50, w: 40, h: 30, medalSpawnCount: 1, lastActivation: 0, score: 200 });
-    // 中央スロットの上のホッパー (フィーバー突入のチャンス)
-    medalHoppers.push({ x: canvas.width / 2 - 20, y: 150, w: 40, h: 30, medalSpawnCount: 3, lastActivation: 0, score: 500, activatesSlot: true });
-}
-
-function resetBall() {
-    playerBall.x = pinballTableDesign.plungerStartX;
-    playerBall.y = pinballTableDesign.plungerStartY;
-    playerBall.vx = 0;
-    playerBall.vy = 0;
-    playerBall.isHeld = false;
-    playerBall.isPlungerPulled = false;
-    playerBall.plungerPullAmount = 0;
-    playerBall.isMoving = false;
-    comboCount = 0; // ボールを失ったらコンボリセット
-    updateUI();
+    hoppers = [
+        {x: 50, y: 50, w: 40, h: 30, medals: 1, score: 200},
+        {x: 300, y: 50, w: 40, h: 30, medals: 1, score: 200},
+        {x: 175, y: 220, w: 50, h: 35, medals: 3, score: 500, isSlot: true}
+    ];
 }
 
 function startGame() {
     document.getElementById("start-screen").style.display = "none";
-    gameState = "LOADING"; // 初期化が完了するまでLOADING
-    score = 0;
-    ballCount = 3;
-    medalCount = 0;
-    hiScoreDisplay.innerText = hiScore;
-    initGameObjects();
-    resetBall(); // ボールを発射台にセット
-    gameState = "PLAY"; // ボール発射待ち状態
+    initGame(); resetBall();
+    gameState = "PLAY";
     lastTime = performance.now();
     requestAnimationFrame(gameLoop);
 }
 
-function endGame(win) {
-    gameState = "RESULT";
-    if (score > hiScore) {
-        hiScore = score;
-        localStorage.setItem("neon_pin_hi_score", hiScore);
-    }
-    document.getElementById("result-screen").style.display = "flex";
-    document.getElementById("result-msg").innerText = win ? "MISSION COMPLETE!" : "GAME OVER";
-    document.getElementById("final-stats").innerHTML = `FINAL SCORE: ${score}<br>HI-SCORE: ${hiScore}<br>MEDALS: ${medalCount}`;
+function resetBall() {
+    ball.x = 365; ball.y = 630; ball.vx = 0; ball.vy = 0;
+    ball.isMoving = false; ball.pull = 0; ball.isPulling = false;
+    comboCount = 0; updateUI();
 }
 
-// --- 更新ロジック ---
 function update(dt, now) {
-    if (shake > 0) shake -= dt * 25;
-    if (feverTimeActive) {
-        feverTimeRemaining -= dt;
-        if (feverTimeRemaining <= 0) {
-            feverTimeActive = false;
-            feverOverlay.classList.remove('active');
+    if (shake > 0) shake -= dt * 30;
+    if (feverActive) {
+        feverTimer -= dt;
+        if (feverTimer <= 0) {
+            feverActive = false;
+            document.getElementById("fever-overlay").style.display = "none";
         }
     }
 
-    // フリッパーの状態更新
-    flippers.forEach(flipper => {
-        let targetRad = flipper.isActive ? flipper.dir * FLIPPER_ANGLE_RANGE : 0;
-        flipper.angle += (targetRad - flipper.angle) * 15 * dt; // 動作速度調整
+    // スロット更新
+    if (slot.active) {
+        for (let i = 0; i < 3; i++) {
+            if (slot.spinning[i]) {
+                slot.timer[i] -= dt;
+                slot.val[i] = Math.floor(Math.random() * 8);
+                if (slot.timer[i] <= 0) {
+                    slot.spinning[i] = false;
+                    slot.val[i] = 7; // 確率演出
+                    if (i === 2) checkSlot();
+                }
+            }
+        }
+    }
+
+    // フリッパー回転
+    flippers.forEach(f => {
+        let target = f.active ? f.side * 0.7 : 0;
+        f.angle += (target - f.angle) * 18 * dt;
     });
 
-    // プランジャーの状態更新
-    if (playerBall.isPlungerPulled) {
-        playerBall.plungerPullAmount = Math.min(1, playerBall.plungerPullAmount + PLUNGER_PULL_SPEED * dt / PLUNGER_MAX_POWER);
-    }
+    if (ball.isPulling) ball.pull = Math.min(80, ball.pull + dt * 120);
 
-    // ボールがプランジャーにセットされている場合
-    if (!playerBall.isMoving && !playerBall.isHeld) {
-        playerBall.x = pinballTableDesign.plungerStartX;
-        playerBall.y = pinballTableDesign.plungerStartY + playerBall.plungerPullAmount * (pinballTableDesign.plungerLaneWidth * 1.5); // 引いた分だけ下がる
-        // ボールがプランジャーレーンから出たらisMovingをtrueにする
-        if (playerBall.y < pinballTableDesign.plungerStartY - playerBall.radius * 2 && playerBall.plungerPullAmount === 0) {
-             playerBall.isMoving = true;
-        }
-    }
+    if (ball.isMoving) {
+        ball.vx += GRAVITY.x * dt; ball.vy += GRAVITY.y * dt;
+        ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+        ball.vx *= FRICTION; ball.vy *= FRICTION;
 
-
-    // ボールがホールドされていない場合のみ物理演算
-    if (!playerBall.isHeld && playerBall.isMoving) { // isMovingがtrueの時だけ物理演算
-        playerBall.vx += GRAVITY.x * dt;
-        playerBall.vy += GRAVITY.y * dt;
-
-        playerBall.x += playerBall.vx * dt;
-        playerBall.y += playerBall.vy * dt;
-        
-        // 速度が非常に小さい場合、停止とみなす
-        if (Math.abs(playerBall.vx) < 5 && Math.abs(playerBall.vy) < 5) {
-            // isMovingはフリッパーやプランジャーで再起動させるため、ここではfalseにしない
-        } else {
-            playerBall.isMoving = true;
-        }
-
-        // 摩擦
-        playerBall.vx *= FRICTION;
-        playerBall.vy *= FRICTION;
-
-        // 壁との衝突判定
-        walls.forEach(wall => {
-            handleCircleLineCollision(playerBall, wall, dt);
+        // 壁衝突
+        walls.forEach(w => collideLine(ball, w));
+        // フリッパー衝突
+        flippers.forEach(f => {
+            const x2 = f.px + Math.cos(f.angle) * f.len * f.side;
+            const y2 = f.py + Math.sin(f.angle) * f.len * f.side;
+            collideLine(ball, {x1: f.px, y1: f.py, x2: x2, y2: y2}, f.active ? FLIPPER_POWER : 0);
         });
-
-        // バンパーとの衝突判定
-        bumpers.forEach(bumper => {
-            const distSq = (playerBall.x - bumper.x)**2 + (playerBall.y - bumper.y)**2;
-            const radiiSum = playerBall.radius + bumper.radius;
-            if (distSq < radiiSum**2) {
-                const angle = Math.atan2(playerBall.y - bumper.y, playerBall.x - bumper.x);
-                const overlap = radiiSum - Math.sqrt(distSq);
-                playerBall.x += overlap * Math.cos(angle);
-                playerBall.y += overlap * Math.sin(angle);
-
-                let normalX = (playerBall.x - bumper.x) / radiiSum;
-                let normalY = (playerBall.y - bumper.y) / radiiSum;
-                let dotProduct = playerBall.vx * normalX + playerBall.vy * normalY;
-                
-                playerBall.vx = (playerBall.vx - 2 * dotProduct * normalX) * BOUNCE * 1.2; // バンパーは強めに跳ねる
-                playerBall.vy = (playerBall.vy - 2 * dotProduct * normalY) * BOUNCE * 1.2;
-
-                addScore(bumper.score * (feverTimeActive ? 2 : 1));
-                comboCount++;
-                shake = 10;
+        // バンパー衝突
+        bumpers.forEach(b => {
+            let dx = ball.x - b.x, dy = ball.y - b.y, d = Math.sqrt(dx*dx + dy*dy);
+            if (d < BALL_RAD + b.r) {
+                let nx = dx/d, ny = dy/d;
+                ball.x = b.x + nx * (BALL_RAD + b.r);
+                let dot = ball.vx*nx + ball.vy*ny;
+                ball.vx = (ball.vx - 2*dot*nx) * 1.3;
+                ball.vy = (ball.vy - 2*dot*ny) * 1.3;
+                addScore(b.score); comboCount++; shake = 10;
+            }
+        });
+        // ホッパー判定
+        hoppers.forEach(h => {
+            if (ball.x > h.x && ball.x < h.x+h.w && ball.y > h.y && ball.y < h.y+h.h) {
+                addScore(h.score); comboCount++; shake = 15;
+                if (h.isSlot && !slot.active) startSlot();
+                for(let i=0; i<h.medals; i++) spawnMedal(h.x + h.w/2, h.y + h.h);
+                ball.vy *= -0.4; // 軽く弾く
             }
         });
 
-        // フリッパーとの衝突判定
-        flippers.forEach(flipper => {
-            const flipperEndX = flipper.pivotX + Math.cos(flipper.angle + (flipper.dir === 1 ? Math.PI : 0)) * flipper.length;
-            const flipperEndY = flipper.pivotY + Math.sin(flipper.angle + (flipper.dir === 1 ? Math.PI : 0)) * flipper.length;
-            const flipperLine = { x1: flipper.pivotX, y1: flipper.pivotY, x2: flipperEndX, y2: flipperEndY };
-            
-            handleCircleLineCollision(playerBall, flipperLine, dt, true, flipper.isActive ? FLIPPER_POWER : 0);
-        });
-
-        // メダルホッパーとの衝突判定
-        medalHoppers.forEach(hopper => {
-            if (playerBall.x + playerBall.radius > hopper.x && playerBall.x - playerBall.radius < hopper.x + hopper.w &&
-                playerBall.y + playerBall.radius > hopper.y && playerBall.y - playerBall.radius < hopper.y + hopper.h) {
-                
-                if (now - hopper.lastActivation > 500) {
-                    addScore(hopper.score * (feverTimeActive ? 2 : 1));
-                    comboCount++;
-                    shake = 15;
-                    
-                    if (hopper.activatesSlot) {
-                        startDigitalSlotSpin(); // スロット発動
-                    }
-                    
-                    for (let i = 0; i < hopper.medalSpawnCount * (feverTimeActive ? 3 : 1); i++) {
-                        setTimeout(() => {
-                            medals.push({
-                                x: hopper.x + hopper.w / 2 + (Math.random() - 0.5) * hopper.w * 0.5,
-                                y: hopper.y + hopper.h,
-                                vx: (Math.random() - 0.5) * 50,
-                                vy: Math.random() * 50,
-                                radius: 5,
-                                type: (Math.random() < 0.15) ? 'gold' : 'normal',
-                                score: (Math.random() < 0.15) ? 500 : 100
-                            });
-                        }, i * 70); // 排出間隔を調整
-                    }
-                    hopper.lastActivation = now;
-                }
-                // ホッパーに入ったらボールをリセット (メダル投入口の性質による。今回は一旦リセット)
-                // playerBall.isMoving = false; // 次のプランジャー発射待ち
-                // resetBall(); // ボールを失ったとカウントしないように変更
-            }
-        });
-        
-        // ボールが画面下部の落とし穴に落ちたか
-        if (playerBall.y - playerBall.radius > canvas.height + 20) { // 画面下部より少し余裕を持たせる
+        if (ball.y > 750) {
             ballCount--;
-            if (ballCount <= 0) {
-                endGame(false);
-            } else {
-                resetBall();
-            }
+            if (ballCount <= 0) endGame(); else resetBall();
         }
     }
 
-    // メダルの物理演算と獲得判定
-    medals.forEach((medal, i) => {
-        medal.vx += GRAVITY.x * dt;
-        medal.vy += GRAVITY.y * dt;
-        
-        medal.x += medal.vx * dt;
-        medal.y += medal.vy * dt;
-
-        medal.vx *= FRICTION;
-        medal.vy *= FRICTION;
-
-        // メダル同士の衝突 (簡易版)
-        for (let j = i + 1; j < medals.length; j++) {
-            const otherMedal = medals[j];
-            const distSq = (medal.x - otherMedal.x)**2 + (medal.y - otherMedal.y)**2;
-            const radiiSum = medal.radius + otherMedal.radius;
-            if (distSq < radiiSum**2) {
-                const angle = Math.atan2(medal.y - otherMedal.y, medal.x - otherMedal.x);
-                const overlap = radiiSum - Math.sqrt(distSq);
-                medal.x += overlap * 0.5 * Math.cos(angle);
-                medal.y += overlap * 0.5 * Math.sin(angle);
-                otherMedal.x -= overlap * 0.5 * Math.cos(angle);
-                otherMedal.y -= overlap * 0.5 * Math.sin(angle);
-
-                let normalX = (medal.x - otherMedal.x) / radiiSum;
-                let normalY = (medal.y - otherMedal.y) / radiiSum;
-                let dotProduct1 = medal.vx * normalX + medal.vy * normalY;
-                let dotProduct2 = otherMedal.vx * normalX + otherMedal.vy * normalY;
-                
-                medal.vx = (medal.vx - 2 * dotProduct1 * normalX) * BOUNCE;
-                medal.vy = (medal.vy - 2 * dotProduct1 * normalY) * BOUNCE;
-                otherMedal.vx = (otherMedal.vx - 2 * dotProduct2 * normalX) * BOUNCE;
-                otherMedal.vy = (otherMedal.vy - 2 * dotProduct2 * normalY) * BOUNCE;
-            }
-        }
-        // 壁との衝突 (メダル用)
-        if (medal.x - medal.radius < 20 || medal.x + medal.radius > canvas.width - 20) medal.vx *= -BOUNCE;
-        if (medal.y - medal.radius < 0) medal.vy *= -BOUNCE;
-
-
-        // メダル獲得エリアに落ちたか
-        if (medal.y > medalDropArea.y && medal.x > medalDropArea.x && medal.x < medalDropArea.x + medalDropArea.w) {
-            medalCount++;
-            addScore(medal.score * (feverTimeActive ? 2 : 1));
-            medals.splice(i, 1);
-        }
+    medals.forEach((m, i) => {
+        m.vy += GRAVITY.y * dt; m.x += m.vx * dt; m.y += m.vy * dt;
+        if (m.y > 690) { medals.splice(i, 1); medalCount++; addScore(150); }
     });
-
-    // デジタルスロットの更新
-    for (let i = 0; i < 3; i++) {
-        if (digitalSlot.spinning[i]) {
-            digitalSlot.spinTime[i] -= dt;
-            digitalSlot.values[i] = Math.floor(Math.random() * digitalSlot.symbols.length); // ランダムに表示
-            if (digitalSlot.spinTime[i] <= 0) {
-                digitalSlot.spinning[i] = false;
-                digitalSlot.values[i] = 7; // 常に7で停止するように (デバッグ用、後で確率調整)
-                if (!digitalSlot.spinning.some(s => s)) { // 全てのリールが停止したら
-                    checkSlotResult();
-                }
-            }
-        }
-    }
-
-
     updateUI();
 }
 
-// 円と線分の衝突判定・応答
-function handleCircleLineCollision(circle, line, dt, isFlipper = false, power = 0) {
-    const dx = line.x2 - line.x1;
-    const dy = line.y2 - line.y1;
-    const lenSq = dx*dx + dy*dy;
-    
-    // 線分の長さを考慮した最近傍点
-    const t = lenSq === 0 ? 0 : ((circle.x - line.x1) * dx + (circle.y - line.y1) * dy) / lenSq;
-    
-    let closestX, closestY;
-    if (t < 0) {
-        closestX = line.x1;
-        closestY = line.y1;
-    } else if (t > 1) {
-        closestX = line.x2;
-        closestY = line.y2;
-    } else {
-        closestX = line.x1 + t * dx;
-        closestY = line.y1 + t * dy;
-    }
-
-    const distSq = (circle.x - closestX)**2 + (circle.y - closestY)**2;
-
-    if (distSq < circle.radius**2) {
-        const dist = Math.sqrt(distSq);
-        const overlap = circle.radius - dist;
-        const normalX = (circle.x - closestX) / dist;
-        const normalY = (circle.y - closestY) / dist;
-
-        // ボールを押し出す
-        circle.x += normalX * overlap;
-        circle.y += normalY * overlap;
-
-        // 反射
-        let dotProduct = circle.vx *normalX + circle.vy * normalY;
-        circle.vx = (circle.vx - 2 * dotProduct * normalX) * BOUNCE;
-        circle.vy = (circle.vy - 2 * dotProduct * normalY) * BOUNCE;
-
-        if (isFlipper && power > 0) {
-            // フリッパーの勢いをボールに伝える
-            circle.vy -= power; 
-            circle.vx += (Math.random() - 0.5) * 100; // わずかなランダム性
-        }
-        
-        addScore(10);
-        comboCount++;
-        shake = 5;
+function collideLine(b, l, power=0) {
+    let dx = l.x2 - l.x1, dy = l.y2 - l.y1, lenSq = dx*dx + dy*dy;
+    let t = Math.max(0, Math.min(1, ((b.x - l.x1) * dx + (b.y - l.y1) * dy) / lenSq));
+    let cx = l.x1 + t * dx, cy = l.y1 + t * dy;
+    let dist = Math.sqrt((b.x - cx)**2 + (b.y - cy)**2);
+    if (dist < BALL_RAD) {
+        let nx = (b.x - cx)/dist, ny = (b.y - cy)/dist;
+        b.x = cx + nx * BALL_RAD; b.y = cy + ny * BALL_RAD;
+        let dot = b.vx * nx + b.vy * ny;
+        b.vx = (b.vx - 2 * dot * nx) * BOUNCE;
+        b.vy = (b.vy - 2 * dot * ny) * BOUNCE;
+        if (power > 0) b.vy -= power;
     }
 }
 
-// --- スロットロジック ---
-function startDigitalSlotSpin() {
-    if (digitalSlot.spinning.some(s => s)) return;
-    
-    for (let i = 0; i < 3; i++) {
-        digitalSlot.spinning[i] = true;
-        digitalSlot.spinTime[i] = 1.0 + (i * 0.5); // 左から順に止まる
+function startSlot() {
+    slot.active = true;
+    slot.spinning = [true, true, true];
+    slot.timer = [1.0, 1.8, 2.5];
+}
+
+function checkSlot() {
+    if (slot.val[0] === 7 && slot.val[1] === 7 && slot.val[2] === 7) {
+        feverActive = true; feverTimer = 15;
+        document.getElementById("fever-overlay").style.display = "block";
+        score += 7777; shake = 25;
     }
+    setTimeout(() => { slot.active = false; }, 1000);
 }
 
-function checkSlotResult() {
-    // 777判定 (デバッグ用に当たりやすく設定可能)
-    if (digitalSlot.values[0] === 7 && digitalSlot.values[1] === 7 && digitalSlot.values[2] === 7) {
-        startFeverTime();
-        score += 7777;
-    }
+function spawnMedal(x, y) {
+    medals.push({x: x, y: y, vx: (Math.random()-0.5)*150, vy: -50});
 }
 
-function startFeverTime() {
-    feverTimeActive = true;
-    feverTimeRemaining = 15;
-    feverOverlay.classList.add('active');
-    shake = 30;
+function addScore(p) { score += p * (feverActive ? 3 : 1) * (1 + Math.floor(comboCount/10)); }
+
+function updateUI() {
+    document.getElementById("score").innerText = score;
+    document.getElementById("medals").innerText = medalCount;
+    document.getElementById("balls").innerText = ballCount;
+    document.getElementById("combo").innerText = "x" + (1 + Math.floor(comboCount/10));
 }
 
-// --- 描画ロジック ---
 function draw() {
     ctx.save();
-    if (shake > 0) ctx.translate(Math.random()*shake - shake/2, Math.random()*shake - shake/2);
+    if (shake > 0) ctx.translate(Math.random()*shake-shake/2, Math.random()*shake-shake/2);
+    ctx.clearRect(0,0,400,700);
 
-    // 背景描画
-    const grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 0, canvas.width/2, canvas.height/2, canvas.height);
-    grad.addColorStop(0, '#1a0033');
-    grad.addColorStop(1, '#000000');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // 壁（ネオン）
+    ctx.strokeStyle = '#0ff'; ctx.lineWidth = 3; ctx.shadowBlur = 12; ctx.shadowColor = '#0ff';
+    ctx.beginPath();
+    walls.forEach(w => { ctx.moveTo(w.x1, w.y1); ctx.lineTo(w.x2, w.y2); });
+    ctx.stroke();
 
-    // 壁のネオン描画
-    ctx.strokeStyle = '#00ffff';
-    ctx.lineWidth = 3;
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = '#00ffff';
-    walls.forEach(w => {
-        ctx.beginPath(); ctx.moveTo(w.x1, w.y1); ctx.lineTo(w.x2, w.y2); ctx.stroke();
+    // デジタルスロット
+    ctx.shadowBlur = 0; ctx.fillStyle = '#111'; ctx.fillRect(140, 40, 120, 50);
+    ctx.strokeStyle = '#f0f'; ctx.strokeRect(140, 40, 120, 50);
+    ctx.fillStyle = '#fff'; ctx.font = "20px 'Press Start 2P'";
+    ctx.fillText(slot.val.join(' '), 150, 75);
+
+    // バンパー
+    bumpers.forEach(b => {
+        ctx.shadowBlur = 10; ctx.shadowColor = b.color; ctx.fillStyle = b.color;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
     });
 
-    // デジタルスロット描画
-    ctx.fillStyle = '#111';
-    ctx.fillRect(digitalSlot.x - 60, digitalSlot.y - 25, 120, 50);
-    ctx.strokeStyle = '#ff00ff';
-    ctx.strokeRect(digitalSlot.x - 60, digitalSlot.y - 25, 120, 50);
-    
-    ctx.font = "24px 'Press Start 2P'";
-    ctx.textAlign = "center";
-    for(let i=0; i<3; i++) {
-        ctx.fillStyle = (digitalSlot.values[i] === 7) ? '#ff0' : '#fff';
-        ctx.fillText(digitalSlot.values[i], digitalSlot.x - 40 + (i * 40), digitalSlot.y + 10);
-    }
+    // ホッパー
+    ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(0,255,255,0.3)';
+    hoppers.forEach(h => { ctx.fillRect(h.x, h.y, h.w, h.h); ctx.strokeRect(h.x, h.y, h.w, h.h); });
 
     // フリッパー
-    ctx.shadowColor = '#ffff00';
+    ctx.strokeStyle = '#ff0'; ctx.lineWidth = 10; ctx.shadowBlur = 8; ctx.shadowColor = '#ff0';
     flippers.forEach(f => {
-        ctx.save();
-        ctx.translate(f.pivotX, f.pivotY);
-        ctx.rotate(f.angle);
-        ctx.fillStyle = '#ff0';
-        ctx.fillRect(0, -6, f.length * (f.dir === 1 ? -1 : 1), 12);
+        ctx.save(); ctx.translate(f.px, f.py); ctx.rotate(f.angle);
+        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(f.len * f.side, 0); ctx.stroke();
         ctx.restore();
     });
 
-    // バンパー (ネオン円)
-    bumpers.forEach(b => {
-        ctx.shadowColor = '#0f0';
-        ctx.fillStyle = '#050';
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#0f0';
-        ctx.stroke();
-    });
-
     // メダル
-    medals.forEach(m => {
-        ctx.shadowBlur = 5;
-        ctx.fillStyle = m.type === 'gold' ? '#ff0' : '#ddd';
-        ctx.beginPath(); ctx.arc(m.x, m.y, m.radius, 0, Math.PI*2); ctx.fill();
-    });
+    ctx.fillStyle = '#ff0'; ctx.shadowBlur = 5; ctx.shadowColor = '#ff0';
+    medals.forEach(m => { ctx.beginPath(); ctx.arc(m.x, m.y, 5, 0, Math.PI*2); ctx.fill(); });
 
-    // プランジャー (発射台のスプリング)
-    ctx.fillStyle = '#444';
-    const pY = pinballTableDesign.plungerStartY + playerBall.plungerPullAmount * 40;
-    ctx.fillRect(canvas.width - 35, pY, 20, 100);
-
-    // ボール (金属光沢)
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = '#00ffff';
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(playerBall.x, playerBall.y, playerBall.radius, 0, Math.PI*2); ctx.fill();
+    // ボールとプランジャー
+    ctx.fillStyle = '#fff'; ctx.shadowBlur = 15; ctx.shadowColor = '#fff';
+    ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL_RAD, 0, Math.PI*2); ctx.fill();
+    
+    ctx.fillStyle = '#444'; ctx.shadowBlur = 0;
+    ctx.fillRect(355, 650 + ball.pull, 30, 60); // プランジャーのバネ
 
     ctx.restore();
 }
 
-// --- 操作イベント ---
-canvas.addEventListener("touchstart", (e) => {
-    e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const touch = e.touches[0];
-    const tx = (touch.clientX - rect.left) * (canvas.width / rect.width);
-    
-    // 右端タップでプランジャーを引く
-    if (tx > canvas.width - 50 && !playerBall.isMoving) {
-        playerBall.isPlungerPulled = true;
-    } else {
-        // 左右タップでフリッパー
-        if (tx < canvas.width/2) flippers[0].isActive = true;
-        else flippers[1].isActive = true;
-    }
-}, {passive: false});
-
-canvas.addEventListener("touchend", (e) => {
-    if (playerBall.isPlungerPulled) {
-        // 発射！
-        playerBall.vy = -playerBall.plungerPullAmount * PLUNGER_MAX_POWER;
-        playerBall.vx = -10; // 少し左に飛ばす
-        playerBall.isMoving = true;
-        playerBall.isPlungerPulled = false;
-        playerBall.plungerPullAmount = 0;
-    }
-    flippers[0].isActive = false;
-    flippers[1].isActive = false;
-}, {passive: false});
-
-function addScore(p) { score += p * (feverTimeActive ? 2 : 1); }
-function updateUI() {
-    scoreDisplay.innerText = score;
-    hiScoreDisplay.innerText = hiScore;
-    ballCountDisplay.innerText = ballCount;
-    medalCountDisplay.innerText = medalCount;
-    comboDisplay.innerText = "x" + (1 + Math.floor(comboCount/10));
-}
-
-function gameLoop(timestamp) {
+function gameLoop(t) {
     if (gameState !== "PLAY") return;
-    let dt = (timestamp - lastTime) / 1000;
-    if (dt > 0.1) dt = 0.1;
-    lastTime = timestamp;
-    update(dt, timestamp);
+    update((t - lastTime)/1000, t);
     draw();
+    lastTime = t;
     requestAnimationFrame(gameLoop);
 }
 
-// パスワード機能
+// --- 操作系 ---
+window.addEventListener("touchstart", e => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const tx = (touch.clientX - rect.left) * (400 / rect.width);
+    if (tx > 340 && !ball.isMoving) ball.isPulling = true;
+    else {
+        if (tx < 200) flippers[0].active = true;
+        else flippers[1].active = true;
+    }
+}, {passive:false});
+
+window.addEventListener("touchend", e => {
+    if (ball.isPulling) {
+        ball.vy = -ball.pull * 8.5; ball.vx = -20;
+        ball.isMoving = true; ball.isPulling = false;
+    }
+    flippers.forEach(f => f.active = false);
+}, {passive:false});
+
 function enterCode() {
-    const code = prompt("ENTER CODE");
-    if(code === "777") startFeverTime();
+    let c = prompt("ENTER CODE");
+    if(c === "777") { score += 10000; feverActive = true; feverTimer = 20; }
 }
 
-updateUI();
+function endGame() {
+    gameState = "RESULT";
+    document.getElementById("result-screen").style.display = "flex";
+    document.getElementById("final-stats").innerText = "FINAL SCORE: " + score;
+}
 </script>
 </body>
 </html>
