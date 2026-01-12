@@ -5,29 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>INVADER EVO ULTIMATE</title>
+    <title>INVADER EVO ULTIMATE+</title>
     <style>
         html, body { background: #000; color: #fff; text-align: center; font-family: 'Courier New', sans-serif; overflow: hidden; touch-action: none; margin: 0; width: 100%; height: 100%; -webkit-user-select: none; }
-        #game-container { display: flex; flex-direction: column; height: 100vh; }
-        .ui-top { height: 60px; display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center; background: #111; color: #0f0; font-size: 12px; border-bottom: 1px solid #333; padding-top: env(safe-area-inset-top); }
-        #screen-area { position: relative; flex-grow: 1; width: 100%; background: #000; }
+        #game-container { display: flex; flex-direction: column; height: 100vh; position: relative; }
+        .ui-top { height: 70px; display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center; background: rgba(17, 17, 17, 0.8); color: #0f0; font-size: 11px; border-bottom: 1px solid #333; padding-top: env(safe-area-inset-top); z-index: 10; }
+        #screen-area { position: relative; flex-grow: 1; width: 100%; background: #000; overflow: hidden; }
         canvas { display: block; margin: 0 auto; width: 100%; height: 100%; object-fit: contain; }
-        #touch-area { height: 100px; background: #0a0a0a; display: flex; flex-direction: column; align-items: center; justify-content: center; border-top: 1px solid #444; padding-bottom: env(safe-area-inset-bottom); }
+        #touch-area { height: 100px; background: #0a0a0a; display: flex; flex-direction: column; align-items: center; justify-content: center; border-top: 1px solid #444; padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
         .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
         button { padding: 12px 30px; font-size: 18px; background: #0f0; border: none; font-weight: bold; border-radius: 30px; margin: 5px; }
-        .code-btn { background: #444; color: #ccc; font-size: 12px; padding: 5px 15px; }
-        #boss-hp-container { position: absolute; top: 10px; left: 10%; width: 80%; height: 10px; border: 1px solid #f00; display: none; }
+        .code-btn { background: #333; color: #888; font-size: 11px; padding: 5px 15px; margin-top: 10px; border-radius: 5px; }
+        #boss-hp-container { position: absolute; top: 10px; left: 10%; width: 80%; height: 10px; border: 1px solid #f00; display: none; z-index: 20; }
         #boss-hp-bar { width: 100%; height: 100%; background: #f00; transition: width 0.2s; }
+        .stat-val { color: #fff; font-size: 14px; }
     </style>
 </head>
 <body>
 
 <div id="game-container">
     <div class="ui-top">
-        <div>SCORE: <span id="score">0</span></div>
-        <div>HI-SCORE: <span id="hi-score">0</span></div>
-        <div>LIFE: <span id="life">3</span></div>
-        <div>WAVE: <span id="wave">1</span></div>
+        <div>SCORE <br><span id="score" class="stat-val">0</span></div>
+        <div>HI-SCORE <br><span id="hi-score" class="stat-val">0</span></div>
+        <div>LIFE <br><span id="life" class="stat-val">3</span></div>
+        <div>WAVE <br><span id="wave" class="stat-val">1</span></div>
+        <div>COMBO <br><span id="combo" class="stat-val" style="color:#ff0">x1.0</span></div>
     </div>
     
     <div id="screen-area">
@@ -35,21 +37,22 @@
         <canvas id="gameCanvas" width="400" height="500"></canvas>
         
         <div id="start-screen" class="overlay">
-            <h1 style="color:#0f0;">INVADER EVO</h1>
+            <h1 style="color:#0f0; margin:0; letter-spacing: 4px;">INVADER EVO</h1>
+            <p style="color:#555; font-size:12px;">ULTIMATE PLUS EDITION</p>
             <button onclick="startGame()">MISSION START</button>
             <button class="code-btn" onclick="enterCode()">ENTER CODE</button>
         </div>
 
         <div id="result-screen" class="overlay" style="display:none">
-            <h2 id="result-msg">GAME OVER</h2>
-            <div id="final-stats" style="margin-bottom:20px;"></div>
-            <button onclick="location.reload()">RETRY</button>
+            <h2 id="result-msg" style="color:#0f0;">MISSION COMPLETE</h2>
+            <div id="final-stats" style="margin-bottom:20px; line-height: 1.6;"></div>
+            <button onclick="location.reload()">BACK TO TITLE</button>
         </div>
     </div>
 
     <div id="touch-area">
-        <div id="buff-status" style="font-weight:bold; height:20px;"></div>
-        <div style="color:#444; font-size:10px; margin-top:5px;">◀ SLIDE TO MOVE & FIRE ▶</div>
+        <div id="buff-status" style="font-weight:bold; height:20px; color:#ff0; font-size:14px;"></div>
+        <div style="color:#444; font-size:10px; margin-top:5px;">◀ SLIDE TO MOVE & AUTO FIRE ▶</div>
     </div>
 </div>
 
@@ -57,81 +60,75 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// --- スプライト ---
+// --- スプライトデータ ---
 const sprites = {
     top: [[0,0,0,1,1,0,0,0],[0,0,1,1,1,1,0,0],[0,1,1,1,1,1,1,0],[1,1,0,1,1,0,1,1],[1,1,1,1,1,1,1,1],[0,0,1,0,0,1,0,0],[0,1,0,1,1,0,1,0],[1,0,1,0,0,1,0,1]],
     mid: [[0,0,1,0,0,1,0,0],[1,0,0,1,1,0,0,1],[1,0,1,1,1,1,0,1],[1,1,1,0,0,1,1,1],[0,1,1,1,1,1,1,0],[0,0,1,1,1,1,0,0],[0,1,0,0,0,0,1,0],[1,0,0,0,0,0,0,1]],
     bot: [[0,0,0,1,1,0,0,0],[0,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1],[1,1,0,1,1,0,1,1],[1,1,1,1,1,1,1,1],[0,0,1,1,1,1,0,0],[0,1,1,0,0,1,1,0],[1,1,0,0,0,0,1,1]],
-    boss: [
-        [0,0,0,0,1,1,1,1,1,1,0,0,0,0],
-        [0,0,1,1,1,1,1,1,1,1,1,1,0,0],
-        [0,1,1,1,1,1,1,1,1,1,1,1,1,0],
-        [1,1,0,0,1,1,0,0,1,1,0,0,1,1],
-        [1,1,0,0,1,1,0,0,1,1,0,0,1,1],
-        [1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-        [0,0,1,1,0,0,1,1,0,0,1,1,0,0],
-        [0,1,1,0,0,1,1,1,1,0,0,1,1,0]
-    ]
+    boss: [[0,0,0,0,1,1,1,1,1,1,0,0,0,0],[0,0,1,1,1,1,1,1,1,1,1,1,0,0],[0,1,1,1,1,1,1,1,1,1,1,1,1,0],[1,1,0,0,1,1,0,0,1,1,0,0,1,1],[1,1,0,0,1,1,0,0,1,1,0,0,1,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1],[0,0,1,1,0,0,1,1,0,0,1,1,0,0],[0,1,1,0,0,1,1,1,1,0,0,1,1,0]],
+    ufo: [[0,0,0,1,1,1,1,0,0,0],[0,1,1,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1,1,1],[1,1,0,1,1,1,1,0,1,1],[0,0,1,1,0,0,1,1,0,0]]
 };
 
-let gameState = "TITLE", score = 0, hiScore = localStorage.getItem("invader_hi") || 0, life = 3, wave = 1, lastTime = 0;
-let enemies = [], enemyBullets = [], items = [], barriers = [], boss = null;
-let enemyDir = 1, enemyTimer = 0, enemyMoveInterval = 600;
+// --- ゲーム状態管理 ---
+let gameState = "TITLE", score = 0, hiScore = localStorage.getItem("inv_hi_v3") || 0, life = 3, wave = 1, lastTime = 0;
+let enemies = [], enemyBullets = [], items = [], barriers = [], ufo = null, boss = null, stars = [];
+let enemyDir = 1, enemyTimer = 0, enemyMoveInterval = 600, shake = 0, comboCount = 0;
 
-const player = { x: 180, y: 440, w: 30, h: 18, bullets: [], lastShot: 0, moveSens: 1.6, shotInterval: 400, bulletSpeed: 600 };
+const player = { x: 180, y: 440, w: 30, h: 18, bullets: [], lastShot: 0, moveSens: 1.6, shotInterval: 400, bulletSpeed: 600, hasShield: false };
 
 document.getElementById("hi-score").innerText = hiScore;
 
-// --- 初期化機能 ---
+// --- 背景（星空）の初期化 ---
+function initStars() {
+    stars = [];
+    for(let i=0; i<50; i++) {
+        stars.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*2+1 });
+    }
+}
+
 function initBarriers() {
     barriers = [];
     for (let b = 0; b < 4; b++) {
         for (let r = 0; r < 3; r++) {
             for (let c = 0; c < 4; c++) {
-                barriers.push({ x: 50 + b * 90 + c * 10, y: 380 + r * 10, w: 10, h: 10, hp: 3 });
+                barriers.push({ x: 50 + b * 95 + c * 10, y: 380 + r * 10, w: 10, h: 10, hp: 3 });
             }
         }
     }
 }
 
 function initWave() {
-    enemies = []; enemyBullets = []; items = []; boss = null;
+    enemies = []; enemyBullets = []; items = []; boss = null; ufo = null;
     document.getElementById("boss-hp-container").style.display = "none";
+    document.getElementById("wave").innerText = wave;
     
     if (wave % 5 === 0) {
-        // ボス戦
-        boss = { x: 150, y: 50, w: 100, h: 60, hp: 20 + wave * 5, maxHp: 20 + wave * 5, dir: 1 };
+        boss = { x: 150, y: 50, w: 112, h: 64, hp: 30 + wave * 5, maxHp: 30 + wave * 5, dir: 1 };
         document.getElementById("boss-hp-container").style.display = "block";
         updateBossBar();
     } else {
-        // 通常戦
         for (let r = 0; r < 5; r++) {
             for (let c = 0; c < 8; c++) {
                 enemies.push({ x: c * 40 + 40, y: r * 30 + 60, w: 24, h: 24, type: r==0?'top':(r<3?'mid':'bot'), pts: (5-r)*10 });
             }
         }
     }
-    enemyMoveInterval = Math.max(50, 500 - (wave * 30));
+    enemyMoveInterval = Math.max(50, 550 - (wave * 25));
     initBarriers();
 }
 
-// --- コード入力 ---
+// --- パスワード機能 ---
 function enterCode() {
     const code = prompt("ENTER PASSCODE:");
     if (code === "1117") {
-        score = 0; hiScore = 0; localStorage.setItem("invader_hi", 0);
-        alert("DATA RESET SUCCESS");
-        location.reload();
+        localStorage.setItem("inv_hi_v3", 0);
+        alert("DATA RESET"); location.reload();
     } else if (code === "5555") {
-        wave = 5;
-        alert("DEBUG MODE: JUMP TO WAVE 5");
-        startGame();
-    } else {
-        alert("INVALID CODE");
+        wave = 5; alert("DEBUG: WAVE 5"); startGame();
     }
 }
 
-// --- 操作 ---
+// --- 操作系 ---
 let lastTouchX = null;
 window.addEventListener("touchstart", e => { lastTouchX = e.touches[0].clientX; });
 window.addEventListener("touchmove", e => {
@@ -145,6 +142,7 @@ window.addEventListener("touchmove", e => {
 function startGame() {
     document.getElementById("start-screen").style.display = "none";
     gameState = "PLAY";
+    initStars();
     initWave();
     lastTime = performance.now();
     requestAnimationFrame(gameLoop);
@@ -160,62 +158,89 @@ function gameLoop(timestamp) {
     requestAnimationFrame(gameLoop);
 }
 
+// --- 更新ロジック ---
 function update(dt, now) {
-    // プレイヤーショット
-    if (now - player.lastShot > player.shotInterval) {
-        player.bullets.push({ x: player.x + player.w/2 - 2, y: player.y, w: 4, h: 12 });
-        player.lastShot = now;
-    }
-    player.bullets.forEach((b, i) => {
-        b.y -= player.bulletSpeed * dt;
-        if (b.y < 0) player.bullets.splice(i, 1);
-        // 防壁との当たり判定
-        barriers.forEach((br, j) => {
-            if (b.x < br.x + br.w && b.x + b.w > br.x && b.y < br.y + br.h && b.y + b.h > br.y) {
-                player.bullets.splice(i, 1);
-                br.hp--;
-                if (br.hp <= 0) barriers.splice(j, 1);
-            }
-        });
+    if (shake > 0) shake -= dt * 25;
+
+    // 星の移動（Waveが進むと速くなる）
+    stars.forEach(s => {
+        s.y += s.s * (1 + wave * 0.2);
+        if (s.y > canvas.height) { s.y = 0; s.x = Math.random() * canvas.width; }
     });
 
+    // UFO出現
+    if (!boss && !ufo && Math.random() < 0.002) ufo = { x: -40, y: 40, w: 40, h: 20, speed: 120 };
+    if (ufo) { ufo.x += ufo.speed * dt; if (ufo.x > canvas.width) ufo = null; }
+
+    // 自機ショット
+    if (now - player.lastShot > player.shotInterval) {
+        player.bullets.push({ x: player.x + player.w/2 - 2, y: player.y, w: 4, h: 12, spent: false });
+        player.lastShot = now;
+    }
+
+    player.bullets.forEach((b, i) => {
+        b.y -= player.bulletSpeed * dt;
+        
+        // 画面外（コンボリセット判定）
+        if (b.y < 0) {
+            if (!b.hit) comboCount = 0; // 外したらコンボリセット
+            player.bullets.splice(i, 1);
+        }
+
+        // 防壁判定
+        barriers.forEach((br, j) => {
+            if (b.x < br.x+br.w && b.x+b.w > br.x && b.y < br.y+br.h && b.y+b.h > br.y) {
+                player.bullets.splice(i, 1); b.hit = true; br.hp--; if (br.hp <= 0) barriers.splice(j, 1);
+            }
+        });
+
+        // UFO判定
+        if (ufo && b.x < ufo.x+ufo.w && b.x+b.w > ufo.x && b.y < ufo.y+ufo.h && b.y+b.h > ufo.y) {
+            score += Math.floor(150 * getMultiplier()); ufo = null; b.hit = true; player.bullets.splice(i, 1);
+            comboCount++;
+        }
+    });
+
+    // 敵の移動・攻撃
     if (boss) {
-        // ボスの移動と攻撃
-        boss.x += 100 * boss.dir * dt;
+        boss.x += 120 * boss.dir * dt;
         if (boss.x > canvas.width - boss.w || boss.x < 0) boss.dir *= -1;
-        if (Math.random() < 0.05) enemyBullets.push({ x: boss.x + Math.random()*boss.w, y: boss.y + boss.h, w: 5, h: 15, isBoss: true });
+        if (Math.random() < 0.07) enemyBullets.push({ x: boss.x + Math.random()*boss.w, y: boss.y + boss.h, w: 6, h: 16, isBoss: true });
     } else {
-        // 通常敵の移動
         enemyTimer += dt * 1000;
-        if (enemyTimer > enemyMoveInterval) {
+        if (enemyTimer > (enemyMoveInterval * (enemies.length/40 + 0.2))) {
             let hitEdge = false;
-            enemies.forEach(e => { e.x += 12 * enemyDir; if (e.x > canvas.width - 30 || e.x < 10) hitEdge = true; });
+            enemies.forEach(e => { e.x += 14 * enemyDir; if (e.x > canvas.width - 30 || e.x < 10) hitEdge = true; });
             if (hitEdge) { enemyDir *= -1; enemies.forEach(e => e.y += 20); }
             enemyTimer = 0;
             if (enemies.some(e => e.y > 380)) endGame(false);
         }
-        if (Math.random() < 0.02 && enemies.length > 0) {
+        if (Math.random() < 0.02 + (wave*0.005) && enemies.length > 0) {
             const s = enemies[Math.floor(Math.random() * enemies.length)];
             enemyBullets.push({ x: s.x + 10, y: s.y + 20, w: 3, h: 10 });
         }
     }
 
-    // 敵の弾更新
+    // 敵の弾 vs 防壁・プレイヤー
     enemyBullets.forEach((eb, i) => {
-        eb.y += (eb.isBoss ? 300 : 250) * dt;
+        eb.y += (eb.isBoss ? 320 : 260) * dt;
         if (eb.y > canvas.height) enemyBullets.splice(i, 1);
-        // 防壁判定
+        
         barriers.forEach((br, j) => {
-            if (eb.x < br.x + br.w && eb.x + eb.w > br.x && eb.y < br.y + br.h && eb.y + eb.h > br.y) {
-                enemyBullets.splice(i, 1);
-                br.hp--; if (br.hp <= 0) barriers.splice(j, 1);
+            if (eb.x < br.x+br.w && eb.x+eb.w > br.x && eb.y < br.y+br.h && eb.y+eb.h > br.y) {
+                enemyBullets.splice(i, 1); br.hp--; if (br.hp <= 0) barriers.splice(j, 1);
             }
         });
-        // プレイヤー判定
-        if (eb.x < player.x + player.w && eb.x + eb.w > player.x && eb.y < player.y + player.h && eb.y + eb.h > player.y) {
+
+        if (eb.x < player.x+player.w && eb.x+eb.w > player.x && eb.y < player.y+player.h && eb.y+eb.h > player.y) {
             enemyBullets.splice(i, 1);
-            life--; document.getElementById("life").innerText = life;
-            if (life <= 0) endGame(false);
+            if (player.hasShield) {
+                player.hasShield = false; shake = 15; // シールドで耐える
+            } else {
+                life--; shake = 20; comboCount = 0;
+                document.getElementById("life").innerText = life;
+                if (life <= 0) endGame(false);
+            }
         }
     });
 
@@ -223,81 +248,112 @@ function update(dt, now) {
     player.bullets.forEach((b, bi) => {
         if (boss) {
             if (b.x < boss.x + boss.w && b.x + b.w > boss.x && b.y < boss.y + boss.h && b.y + b.h > boss.y) {
-                player.bullets.splice(bi, 1);
-                boss.hp--; updateBossBar();
-                if (boss.hp <= 0) { score += 500; wave++; initWave(); }
+                player.bullets.splice(bi, 1); boss.hp--; updateBossBar(); b.hit = true;
+                if (boss.hp <= 0) { score += 1000; wave++; shake = 30; initWave(); }
             }
         } else {
             enemies.forEach((e, ei) => {
                 if (b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
-                    player.bullets.splice(bi, 1);
-                    score += e.pts; document.getElementById("score").innerText = score;
-                    if (Math.random() < 0.15) spawnItem(e.x, e.y);
+                    player.bullets.splice(bi, 1); b.hit = true;
+                    comboCount++;
+                    score += Math.floor(e.pts * getMultiplier());
+                    if (Math.random() < 0.18) spawnItem(e.x, e.y);
                     enemies.splice(ei, 1);
                 }
             });
         }
     });
 
-    // アイテム
+    // アイテム取得
     items.forEach((it, i) => {
-        it.y += 150 * dt;
+        it.y += 160 * dt;
         if (it.y > player.y && it.y < player.y + player.h && it.x > player.x && it.x < player.x + player.w) {
             applyItem(it.type); items.splice(i, 1);
         }
     });
 
-    if (!boss && enemies.length === 0) { wave++; document.getElementById("wave").innerText = wave; initWave(); }
+    document.getElementById("score").innerText = score;
+    document.getElementById("combo").innerText = "x" + getMultiplier().toFixed(1);
+
+    if (!boss && enemies.length === 0) { wave++; initWave(); }
+}
+
+function getMultiplier() {
+    return Math.min(5.0, 1.0 + (Math.floor(comboCount / 5) * 0.5));
 }
 
 function spawnItem(x, y) {
-    const t = [{t:'S_UP',c:'#0af',s:'S'},{t:'F_UP',c:'#ff0',s:'F'},{t:'S_DN',c:'#f00',s:'D'}];
-    const sel = t[Math.floor(Math.random()*t.length)];
+    const t = [
+        {t:'S_UP',c:'#0af',s:'S'}, {t:'F_UP',c:'#ff0',s:'F'},
+        {t:'S_DN',c:'#f00',s:'D'}, {t:'W_DN',c:'#f0f',s:'W'},
+        {t:'SHIELD',c:'#0f0',s:'B'} // バリア(Shield)
+    ];
+    const r = Math.random();
+    let sel = r < 0.3 ? t[0] : r < 0.5 ? t[1] : r < 0.7 ? t[4] : r < 0.85 ? t[2] : t[3];
     items.push({ x, y, ...sel });
 }
 
 function applyItem(type) {
     const st = document.getElementById("buff-status");
-    player.moveSens = 1.6; player.shotInterval = 400;
-    if (type === 'S_UP') { player.moveSens = 3.0; st.innerText = "SPEED UP"; }
-    else if (type === 'F_UP') { player.shotInterval = 200; st.innerText = "RAPID FIRE"; }
-    else if (type === 'S_DN') { player.moveSens = 0.7; st.innerText = "SLOW..."; }
-    setTimeout(() => { st.innerText = ""; player.moveSens = 1.6; player.shotInterval = 400; }, 5000);
+    if (type === 'SHIELD') {
+        player.hasShield = true; st.innerText = "🛡️SHIELD ACTIVE"; st.style.color = "#0f0";
+        return;
+    }
+    player.moveSens = 1.6; player.shotInterval = 400; player.bulletSpeed = 600;
+    if (type === 'S_UP') { player.moveSens = 3.2; st.innerText = "⚡SPEED UP"; st.style.color = "#0af"; }
+    else if (type === 'F_UP') { player.shotInterval = 180; st.innerText = "🔥RAPID FIRE"; st.style.color = "#ff0"; }
+    else if (type === 'S_DN') { player.moveSens = 0.6; st.innerText = "🐢SLOW DOWN"; st.style.color = "#f00"; }
+    else if (type === 'W_DN') { player.bulletSpeed = 250; st.innerText = "❄️WEAK SHOT"; st.style.color = "#f0f"; }
+    setTimeout(() => { if(st.innerText.indexOf("SHIELD")===-1) st.innerText = ""; player.moveSens = 1.6; player.shotInterval = 400; player.bulletSpeed = 600; }, 6000);
 }
 
 function updateBossBar() {
-    const pct = (boss.hp / boss.maxHp) * 100;
-    document.getElementById("boss-hp-bar").style.width = pct + "%";
+    document.getElementById("boss-hp-bar").style.width = (boss.hp/boss.maxHp)*100 + "%";
 }
 
+// --- 描画系 ---
 function draw() {
+    ctx.save();
+    if (shake > 0) ctx.translate(Math.random()*shake - shake/2, Math.random()*shake - shake/2);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // 防壁
-    barriers.forEach(br => {
-        ctx.fillStyle = `rgba(0, 255, 0, ${br.hp/3})`;
-        ctx.fillRect(br.x, br.y, br.w, br.h);
-    });
+    // 背景の星
+    ctx.fillStyle = "#fff";
+    stars.forEach(s => ctx.fillRect(s.x, s.y, s.s, s.s));
 
-    // プレイヤー
+    // 防壁
+    barriers.forEach(br => { ctx.fillStyle = `rgba(0, 255, 0, ${br.hp/3})`; ctx.fillRect(br.x, br.y, br.w, br.h); });
+
+    // プレイヤーとシールド
     ctx.fillStyle = "#0f0";
     ctx.fillRect(player.x, player.y + 6, player.w, 12);
     ctx.fillRect(player.x + 11, player.y, 8, 6);
-
-    // 敵/ボス
-    if (boss) {
-        drawPixelSprite(sprites.boss, boss.x, boss.y, 7, "#f00");
-    } else {
-        enemies.forEach(e => drawPixelSprite(sprites[e.type], e.x, e.y, 3, "#fff"));
+    if (player.hasShield) {
+        ctx.strokeStyle = "#0f0"; ctx.lineWidth = 2; ctx.beginPath();
+        ctx.arc(player.x + player.w/2, player.y + player.h/2, 25, 0, Math.PI*2); ctx.stroke();
     }
 
-    // 弾/アイテム
+    // 敵
+    if (boss) {
+        drawPixelSprite(sprites.boss, boss.x, boss.y, 8, "#f00");
+    } else {
+        enemies.forEach(e => {
+            const color = e.type === 'top' ? "#f0f" : (e.type === 'mid' ? "#0cf" : "#fff");
+            drawPixelSprite(sprites[e.type], e.x, e.y, 3, color);
+        });
+    }
+
+    // UFO
+    if (ufo) drawPixelSprite(sprites.ufo, ufo.x, ufo.y, 3, "#f00");
+
+    // 弾・アイテム
     ctx.fillStyle = "#fff"; player.bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
     ctx.fillStyle = "#f33"; enemyBullets.forEach(eb => ctx.fillRect(eb.x, eb.y, eb.w, eb.h));
     items.forEach(it => {
         ctx.fillStyle = it.color; ctx.beginPath(); ctx.arc(it.x, it.y, 10, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = "#000"; ctx.fillText(it.symbol, it.x-3, it.y+4);
+        ctx.fillStyle = "#000"; ctx.font = "bold 12px Arial"; ctx.textAlign="center"; ctx.fillText(it.symbol, it.x, it.y+5);
     });
+    ctx.restore();
 }
 
 function drawPixelSprite(sprite, x, y, size, color) {
@@ -307,9 +363,9 @@ function drawPixelSprite(sprite, x, y, size, color) {
 
 function endGame(win) {
     gameState = "RESULT";
-    if (score > hiScore) { hiScore = score; localStorage.setItem("invader_hi", hiScore); }
+    if (score > hiScore) { hiScore = score; localStorage.setItem("inv_hi_v3", hiScore); }
     document.getElementById("result-screen").style.display = "flex";
-    document.getElementById("final-stats").innerText = `SCORE: ${score} / HI-SCORE: ${hiScore}`;
+    document.getElementById("final-stats").innerHTML = `FINAL SCORE: ${score}<br>HI-SCORE: ${hiScore}<br>WAVE REACHED: ${wave}`;
 }
 </script>
 </body>
