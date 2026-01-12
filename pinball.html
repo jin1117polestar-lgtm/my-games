@@ -3,242 +3,360 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MEDAL PINBALL RUSH - RUSH EDITION</title>
+    <title>GALAXY SLOT PINBALL: OVERLOAD EDITION</title>
     <style>
-        * { user-select: none; -webkit-user-select: none; touch-action: none; }
-        body { background: #000; margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
-        #game-container { position: relative; max-width: 450px; margin: 0 auto; height: 100vh; background: radial-gradient(circle, #1a1a2e 0%, #000 100%); border: 4px solid #333; box-shadow: 0 0 50px rgba(0, 255, 255, 0.2); }
-        .ui-header { position: absolute; top: 0; width: 100%; height: 80px; display: grid; grid-template-columns: 1fr 1fr; padding: 10px; box-sizing: border-box; background: rgba(0,0,0,0.7); border-bottom: 2px solid #0ff; z-index: 100; color: #0ff; font-family: monospace; }
+        * { user-select: none; -webkit-user-select: none; touch-action: none; outline: none; }
+        body { background-color: #000; margin: 0; overflow: hidden; font-family: 'Verdana', sans-serif; }
+        #main-frame { position: relative; width: 100vw; height: 100vh; max-width: 450px; margin: 0 auto; background: #000; border: 5px solid #222; overflow: hidden; }
+        
+        /* 豪華な7セグ風UI */
+        .digital-dashboard {
+            position: absolute; top: 0; width: 100%; height: 90px;
+            background: linear-gradient(180deg, #111 0%, #000 100%);
+            border-bottom: 3px solid #0ff; display: grid; grid-template-columns: repeat(4, 1fr); z-index: 100;
+        }
+        .stat-box { border-right: 1px solid #333; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .stat-label { font-size: 9px; color: #0ff; letter-spacing: 1px; margin-bottom: 5px; }
+        .stat-value { font-size: 22px; color: #fff; text-shadow: 0 0 10px #0ff; font-family: 'Courier New', monospace; font-weight: bold; }
+
+        /* スロットマシン・ビジュアル */
+        #slot-machine {
+            position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+            width: 240px; height: 80px; background: #050505; border: 4px solid #f0f;
+            border-radius: 15px; box-shadow: 0 0 30px rgba(255, 0, 255, 0.5);
+            display: flex; justify-content: space-around; align-items: center; z-index: 90;
+        }
+        .reel-unit {
+            width: 60px; height: 60px; background: #000; border: 1px solid #333;
+            overflow: hidden; position: relative; display: flex; justify-content: center; align-items: center;
+        }
+        .reel-digit { font-size: 48px; color: #fff; text-shadow: 0 0 10px #fff; }
+        .reel-digit.special { color: #ff0; text-shadow: 0 0 20px #f00; }
+
+        /* 特殊演出 */
+        #fever-overlay {
+            position: absolute; top: 40%; width: 100%; text-align: center;
+            font-size: 56px; color: #ff0; font-weight: bold; display: none;
+            z-index: 150; text-shadow: 0 0 40px #f00; pointer-events: none;
+            animation: shake 0.1s infinite;
+        }
+        @keyframes shake { 0% { transform: translate(2px, 2px); } 50% { transform: translate(-2px, -2px); } 100% { transform: translate(0,0); } }
+
         canvas { width: 100%; height: 100%; display: block; }
-        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 200; }
-        .btn-neon { padding: 15px 40px; font-size: 24px; background: transparent; color: #0ff; border: 2px solid #0ff; border-radius: 5px; cursor: pointer; text-shadow: 0 0 10px #0ff; box-shadow: 0 0 10px #0ff; }
-        #fever-log { position: absolute; top: 50%; width: 100%; text-align: center; color: #ff0; font-size: 40px; font-weight: bold; display: none; text-shadow: 0 0 20px #f00; z-index: 50; pointer-events: none; }
+        
+        .start-gate {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 200;
+        }
+        .play-button {
+            padding: 25px 60px; font-size: 28px; background: #0ff; border: none;
+            border-radius: 60px; font-weight: bold; color: #000; cursor: pointer;
+            box-shadow: 0 0 40px #0ff; transition: 0.3s;
+        }
     </style>
 </head>
 <body oncontextmenu="return false;">
 
-<div id="game-container">
-    <div class="ui-header">
-        <div>SCORE: <span id="score">0</span><br>BALL: <span id="balls">3</span></div>
-        <div style="text-align:right;">MEDAL: <span id="medals">0</span><br>COMBO: <span id="combo">x1</span></div>
+<div id="main-frame">
+    <div class="digital-dashboard">
+        <div class="stat-box"><span class="stat-label">SCORE</span><span id="v-score" class="stat-value">0</span></div>
+        <div class="stat-box"><span class="stat-label">MEDAL</span><span id="v-medals" class="stat-value">0</span></div>
+        <div class="stat-box"><span class="stat-label">BALL</span><span id="v-balls" class="stat-value">3</span></div>
+        <div class="stat-box"><span class="stat-label">COMBO</span><span id="v-combo" class="stat-value">x1</span></div>
     </div>
-    
-    <div id="fever-log">FEVER RUSH!!</div>
-    <canvas id="pinballCanvas"></canvas>
 
-    <div id="start-screen" class="overlay">
-        <h1 style="color:#0ff; font-family:monospace; letter-spacing:5px;">MEDAL PINBALL<br><small>RUSH EDITION</small></h1>
-        <button id="start-btn" class="btn-neon">MISSION START</button>
-        <div id="debug-btn" style="margin-top:20px; color:#444; font-size:10px; cursor:pointer;">ENTER CODE</div>
+    <div id="slot-machine">
+        <div class="reel-unit"><div id="r0" class="reel-digit">7</div></div>
+        <div class="reel-unit"><div id="r1" class="reel-digit">7</div></div>
+        <div class="reel-unit"><div id="r2" class="reel-digit">7</div></div>
+    </div>
+
+    <div id="fever-overlay">FEVER RUSH!!</div>
+
+    <canvas id="stage"></canvas>
+
+    <div id="intro" class="start-gate">
+        <h1 style="color:#0ff; text-shadow:0 0 20px #0ff; font-size:42px; margin-bottom:50px;">GALAXY PINBALL</h1>
+        <button class="play-button" onclick="launchGame()">MISSION START</button>
+        <div onclick="debugCommand()" style="margin-top:50px; color:#222; font-size:12px; cursor:pointer;">ADMIN_ACCESS</div>
     </div>
 </div>
 
 <script>
-const canvas = document.getElementById('pinballCanvas');
-const ctx = canvas.getContext('2d');
-const W = 400, H = 700;
-canvas.width = W; canvas.height = H;
+/**
+ * GALAXY PINBALL: OVERLOAD EDITION
+ * 物理、ビジュアル、演出、すべてを省略なしで実装
+ */
 
-// --- 物理パラメータ ---
-const ball = { x: 375, y: 640, vx: 0, vy: 0, r: 8, active: false, pull: 0, isPulling: false };
-const GRAVITY = 650, FRICTION = 0.996, BOUNCE = 0.65;
-let score = 0, medals = 0, balls = 3, combo = 0, fever = 0, debugMode = false;
+const cvs = document.getElementById('stage');
+const ctx = cvs.getContext('2d');
+const W = 450, H = 800;
+cvs.width = W; cvs.height = H;
 
-let walls = [], flippers = [], bumpers = [], coins = [], stars = [];
+// 内部状態変数
+let score = 0, medals = 0, balls = 3, combo = 0, fever = 0, isRunning = false, winForce = false;
+let shakeAmount = 0;
 
-function init() {
-    // 宇宙の星屑背景
-    for(let i=0; i<50; i++) stars.push({x: Math.random()*W, y: Math.random()*H, s: Math.random()*2});
+// 物理オブジェクト
+const ball = {
+    x: 418, y: 740, vx: 0, vy: 0, r: 10,
+    active: false, pull: 0, pulling: false,
+    history: []
+};
 
-    // 画像のレイアウトを再現した壁
+let stars = [], particles = [], sparks = [], coins = [], walls = [], bumpers = [], flippers = [];
+const slot = { rolling: false, res: [7,7,7], timers: [0,0,0], blink: 0 };
+
+// --- 初期構造構築 ---
+function setup() {
+    // 星座背景
+    for(let i=0; i<100; i++) stars.push({x: Math.random()*W, y: Math.random()*H, r: Math.random()*2, a: Math.random()});
+
+    // 高精度壁配置（画像通りのオービット構造）
     walls = [
-        {x1: 20, y1: 100, x2: 20, y2: 600, color: '#0ff'}, // 左外壁
-        {x1: 20, y1: 600, x2: 120, y2: 680, color: '#0ff'}, // 左下スロープ
-        {x1: 380, y1: 100, x2: 380, y2: 650, color: '#0ff'}, // 右外壁
-        {x1: 345, y1: 120, x2: 345, y2: 650, color: '#0ff'}, // プランジャーレーン内壁
-        {x1: 345, y1: 650, x2: 280, y2: 680, color: '#0ff'}, // 右下スロープ
-        {x1: 20, y1: 100, x2: 100, y2: 20, color: '#0ff'}, // 左上カーブ
-        {x1: 100, y1: 20, x2: 300, y2: 20, color: '#0ff'}, // 天井
-        {x1: 300, y1: 20, x2: 380, y2: 100, color: '#0ff'} // 右上カーブ
+        {x1: 10, y1: 150, x2: 10, y2: 700, type: 'neon', color: '#0ff'},
+        {x1: 10, y1: 700, x2: 150, y2: 790, type: 'neon', color: '#0ff'},
+        {x1: 440, y1: 150, x2: 440, y2: 750, type: 'neon', color: '#0ff'},
+        {x1: 395, y1: 200, x2: 395, y2: 750, type: 'neon', color: '#0ff'},
+        {x1: 395, y1: 750, x2: 300, y2: 790, type: 'neon', color: '#0ff'},
+        {x1: 10, y1: 150, x2: 120, y2: 20, type: 'neon', color: '#0ff'},
+        {x1: 120, y1: 20, x2: 330, y2: 20, type: 'neon', color: '#0ff'},
+        {x1: 330, y1: 20, x2: 440, y2: 130, type: 'neon', color: '#0ff'},
+        // 逆流防止（画像の構造を再現）
+        {x1: 395, y1: 130, x2: 440, y2: 130, type: 'hard', color: '#444'}
     ];
 
-    // フリッパー（画像に基づき、外側から内側へ弾く軸配置）
+    // フリッパー（軸位置の適正化）
     flippers = [
-        {x: 120, y: 680, len: 70, angle: 0.5, baseAngle: 0.5, side: 1, active: false}, // 左
-        {x: 280, y: 680, len: 70, angle: -0.5, baseAngle: -0.5, side: -1, active: false} // 右
+        {side: 'left', x: 150, y: 790, len: 85, angle: 0.6, target: 0.6, base: 0.6},
+        {side: 'right', x: 300, y: 790, len: 85, angle: -0.6, target: -0.6, base: -0.6}
     ];
 
-    // 画像のような発光バンパー
+    // バンパー（画像再現＋アニメーション用）
     bumpers = [
-        {x: 200, y: 180, r: 30, color: '#ff00ff', glow: '#f0f'},
-        {x: 120, y: 300, r: 25, color: '#00ffff', glow: '#0ff'},
-        {x: 280, y: 300, r: 25, color: '#00ff00', glow: '#0f0'}
+        {x: 225, y: 260, r: 40, c: '#f0f', g: '#f0f', hit: 0, label: '777'},
+        {x: 120, y: 420, r: 30, c: '#0ff', g: '#0ff', hit: 0, label: 'SCORE'},
+        {x: 330, y: 420, r: 30, c: '#0ff', g: '#0ff', hit: 0, label: 'SCORE'}
     ];
 }
 
+// --- 物理コア（サブステップ・シミュレーション） ---
 function update(dt) {
-    if (fever > 0) fever -= dt;
-    else document.getElementById('fever-log').style.display = 'none';
+    if (!isRunning) return;
 
-    if (ball.isPulling) ball.pull = Math.min(100, ball.pull + dt * 180);
+    // スクリーンシェイク減衰
+    if (shakeAmount > 0) shakeAmount *= 0.9;
 
-    flippers.forEach(f => {
-        let target = f.active ? -0.8 * f.side : f.baseAngle;
-        f.angle += (target - f.angle) * 20 * dt;
-    });
+    const iterations = 8; // すり抜け防止のための8分割計算
+    const idt = dt / iterations;
 
-    if (ball.active) {
-        ball.vy += GRAVITY * dt;
-        ball.vx *= FRICTION; ball.vy *= FRICTION;
-        ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+    for (let i = 0; i < iterations; i++) {
+        if (ball.active) {
+            ball.vy += 950 * idt; // 重力
+            ball.vx *= 0.9995; ball.vy *= 0.9995; // 空気抵抗
+            ball.x += ball.vx * idt; ball.y += ball.vy * idt;
 
-        walls.forEach(w => collide(ball, w));
-        flippers.forEach(f => {
-            const x2 = f.x + Math.cos(f.angle) * f.len * f.side;
-            const y2 = f.y + Math.sin(f.angle) * f.len * f.side;
-            collide(ball, {x1: f.x, y1: f.y, x2: x2, y2: y2}, f.active);
-        });
-        bumpers.forEach(b => {
-            let dx = ball.x - b.x, dy = ball.y - b.y, dist = Math.sqrt(dx*dx+dy*dy);
-            if (dist < ball.r + b.r) {
-                let nx = dx/dist, ny = dy/dist;
-                ball.x = b.x + nx*(ball.r+b.r);
-                let dot = ball.vx*nx + ball.vy*ny;
-                ball.vx = (ball.vx - 2*dot*nx) * 1.6;
-                ball.vy = (ball.vy - 2*dot*ny) * 1.6;
-                score += 100; combo++;
-            }
-        });
+            // 壁との精密衝突判定
+            walls.forEach(w => resolvePhysics(ball, w));
 
-        // 画像中央付近に「スロット穴」を仮想設置
-        if (Math.abs(ball.x-200)<25 && Math.abs(ball.y-450)<25) {
-            if (debugMode || Math.random() < 0.1) {
-                fever = 10; document.getElementById('fever-log').style.display='block';
-            }
-            spawnCoins(200, 450);
-            ball.vy -= 100;
-        }
+            // フリッパーとの動的判定
+            flippers.forEach(f => {
+                const dir = f.side === 'left' ? 1 : -1;
+                const x2 = f.x + Math.cos(f.angle) * f.len * dir;
+                const y2 = f.y + Math.sin(f.angle) * f.len * dir;
+                const isSwinging = Math.abs(f.angle - f.target) > 0.05;
+                resolvePhysics(ball, {x1: f.x, y1: f.y, x2: x2, y2: y2}, isSwinging ? 1000 : 0);
+            });
 
-        if (ball.y > H + 50) {
-            balls--;
-            if (balls <= 0) {
-                document.getElementById('start-screen').style.display = 'flex';
-                ball.active = false;
-            } else resetBall();
+            // バンパー判定
+            bumpers.forEach(b => {
+                let dx = ball.x - b.x, dy = ball.y - b.y, d = Math.sqrt(dx*dx+dy*dy);
+                if (d < ball.r + b.r) {
+                    let nx = dx/d, ny = dy/d; ball.x = b.x + nx*(ball.r+b.r);
+                    let dot = ball.vx*nx + ball.vy*ny;
+                    ball.vx = (ball.vx - 2*dot*nx) * 1.8;
+                    ball.vy = (ball.vy - 2*dot*ny) * 1.8;
+                    
+                    b.hit = 10; shakeAmount = 5;
+                    createSparks(ball.x, ball.y, b.c);
+                    score += 500; combo++;
+                    if (b.label === '777' && !slot.rolling) startSlotSequence();
+                }
+            });
         }
     }
 
-    coins.forEach((c, i) => {
-        c.vy += GRAVITY * dt; c.x += c.vx * dt; c.y += c.vy * dt;
-        if (c.y > H) { coins.splice(i,1); medals++; score += 50; }
-    });
+    // 各種タイマー・演出更新
+    if (fever > 0) {
+        fever -= dt;
+        if (Math.random() < 0.2) spawnMedal();
+        if (fever <= 0) document.getElementById('fever-overlay').style.display = 'none';
+    }
 
-    document.getElementById('score').innerText = score;
-    document.getElementById('medals').innerText = medals;
-    document.getElementById('balls').innerText = balls;
-    document.getElementById('combo').innerText = "x" + (1 + Math.floor(combo/10));
+    if (slot.rolling) {
+        slot.timers.forEach((t, i) => {
+            if (t > 0) {
+                slot.timers[i] -= dt;
+                slot.res[i] = Math.floor(Math.random()*10);
+                document.getElementById('r'+i).style.transform = `translateY(${Math.sin(Date.now()*0.02)*5}px)`;
+            } else {
+                if(winForce) slot.res[i] = 7;
+                const rEl = document.getElementById('r'+i);
+                rEl.className = slot.res[i] === 7 ? 'reel-digit special' : 'reel-digit';
+                rEl.style.transform = 'translateY(0)';
+            }
+            document.getElementById('r'+i).innerText = slot.res[i];
+        });
+        if (slot.timers[2] <= 0 && slot.res.every(v => v === 7)) triggerFeverRush();
+        if (slot.timers[2] <= -2) slot.rolling = false;
+    }
+
+    if (ball.pulling) ball.pull = Math.min(160, ball.pull + dt * 280);
+
+    flippers.forEach(f => f.angle += (f.target - f.angle) * 30 * dt);
+
+    // エフェクト更新
+    particles.forEach((p, i) => {
+        p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
+        if (p.life <= 0) particles.splice(i, 1);
+    });
+    
+    // ボール軌跡
+    if (ball.active) {
+        ball.history.push({x: ball.x, y: ball.y});
+        if (ball.history.length > 12) ball.history.shift();
+    }
+
+    // 落下
+    if (ball.y > H + 100) { balls--; combo = 0; if(balls<=0) location.reload(); else resetBallPosition(); }
+
+    updateUI();
 }
 
-function collide(b, l, isKick) {
-    let dx = l.x2 - l.x1, dy = l.y2 - l.y1, len = dx*dx + dy*dy;
-    let t = Math.max(0, Math.min(1, ((b.x-l.x1)*dx + (b.y-l.y1)*dy) / len));
+function resolvePhysics(b, l, kick = 0) {
+    let dx = l.x2 - l.x1, dy = l.y2 - l.y1, lenSq = dx*dx + dy*dy;
+    let t = Math.max(0, Math.min(1, ((b.x-l.x1)*dx + (b.y-l.y1)*dy) / lenSq));
     let cx = l.x1 + t*dx, cy = l.y1 + t*dy;
     let dist = Math.sqrt((b.x-cx)**2 + (b.y-cy)**2);
+
     if (dist < b.r) {
         let nx = (b.x-cx)/dist, ny = (b.y-cy)/dist;
-        b.x = cx + nx*b.r; b.y = cy + ny*b.r;
+        // 押し出し処理（すり抜け防止の肝）
+        b.x = cx + nx * (b.r + 0.5); b.y = cy + ny * (b.r + 0.5);
         let dot = b.vx*nx + b.vy*ny;
-        b.vx = (b.vx - 2*dot*nx) * BOUNCE;
-        b.vy = (b.vy - 2*dot*ny) * BOUNCE;
-        if (isKick) { b.vy -= 700; b.vx += (b.x - l.x1) * 2; }
+        if (dot < 0) {
+            b.vx = (b.vx - 2*dot*nx) * 0.8;
+            b.vy = (b.vy - 2*dot*ny) * 0.8;
+        }
+        if (kick > 0) { b.vy -= kick; b.vx += (b.x - l.x1) * 3; }
     }
 }
 
+// --- 演出関数 ---
+function createSparks(x, y, color) {
+    for(let i=0; i<15; i++) {
+        particles.push({x:x, y:y, vx:(Math.random()-0.5)*500, vy:(Math.random()-0.5)*500, life:0.8, c:color});
+    }
+}
+function startSlotSequence() { slot.rolling = true; slot.timers = [1.8, 2.8, 4.5]; }
+function triggerFeverRush() { fever = 20; document.getElementById('fever-overlay').style.display = 'block'; }
+function spawnMedal() { coins.push({x:Math.random()*W, y:-20, vx:0, vy:200}); }
+function resetBallPosition() { ball.active=false; ball.x=418; ball.y=740; ball.vx=0; ball.vy=0; ball.pull=0; ball.history=[]; }
+function updateUI() {
+    document.getElementById('v-score').innerText = Math.floor(score);
+    document.getElementById('v-medals').innerText = medals;
+    document.getElementById('v-balls').innerText = balls;
+    document.getElementById('v-combo').innerText = 'x' + (1+Math.floor(combo/10));
+}
+
+// --- 描画コア ---
 function draw() {
-    ctx.clearRect(0,0,W,H);
+    ctx.save();
+    // スクリーンシェイク適用
+    if (shakeAmount > 0) ctx.translate((Math.random()-0.5)*shakeAmount, (Math.random()-0.5)*shakeAmount);
+
+    ctx.clearRect(0, 0, W, H);
     
     // 背景の星
-    ctx.fillStyle = '#fff';
-    stars.forEach(s => ctx.fillRect(s.x, s.y, s.s, s.s));
-
-    // メダル（背景層）
-    ctx.shadowBlur = 10; ctx.shadowColor = '#ff0'; ctx.fillStyle = 'rgba(255,255,0,0.4)';
-    coins.forEach(c => { ctx.beginPath(); ctx.arc(c.x, c.y, 7, 0, Math.PI*2); ctx.fill(); });
+    stars.forEach(s => {
+        ctx.globalAlpha = s.a; ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
+    });
+    ctx.globalAlpha = 1.0;
 
     // ネオンウォール
     walls.forEach(w => {
-        ctx.strokeStyle = w.color; ctx.lineWidth = 4; ctx.shadowBlur = 15; ctx.shadowColor = w.color;
+        ctx.strokeStyle = w.color; ctx.lineWidth = 6; ctx.shadowBlur = 15; ctx.shadowColor = w.color;
         ctx.beginPath(); ctx.moveTo(w.x1, w.y1); ctx.lineTo(w.x2, w.y2); ctx.stroke();
     });
 
-    // 発光バンパー
+    // バンパー（画像の豪華なグロー）
     bumpers.forEach(b => {
-        ctx.shadowBlur = 20; ctx.shadowColor = b.glow;
-        ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.shadowBlur = b.hit > 0 ? 40 : 20; ctx.shadowColor = b.g;
+        ctx.fillStyle = b.c; ctx.beginPath(); ctx.arc(b.x, b.y, b.r + (b.hit*0.5), 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+        if (b.hit > 0) b.hit--;
     });
 
-    // フリッパー（画像のデザインに近い形状）
-    ctx.lineWidth = 12; ctx.lineCap = 'round';
+    // フリッパー（金属的な質感）
+    ctx.lineWidth = 16; ctx.lineCap = 'round'; ctx.strokeStyle = '#ff0'; ctx.shadowBlur = 15;
     flippers.forEach(f => {
         ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(f.angle);
-        ctx.strokeStyle = '#ff0'; ctx.shadowColor = '#ff0'; ctx.shadowBlur = 10;
-        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(f.len * f.side, 0); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(f.len * (f.side==='left'?1:-1), 0); ctx.stroke();
         ctx.restore();
     });
 
-    // ボール（金属光沢風）
-    ctx.shadowBlur = 15; ctx.shadowColor = '#fff'; ctx.fillStyle = '#eee';
+    // ボールと残像
+    ball.history.forEach((h, i) => {
+        ctx.globalAlpha = i / 12; ctx.fillStyle = '#0ff';
+        ctx.beginPath(); ctx.arc(h.x, h.y, ball.r * (i/12), 0, Math.PI*2); ctx.fill();
+    });
+    ctx.globalAlpha = 1.0;
+    ctx.shadowBlur = 20; ctx.shadowColor = '#fff'; ctx.fillStyle = '#eee';
     ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2); ctx.fill();
 
-    // プランジャー（画像のようなバネ構造）
-    ctx.shadowBlur = 0; ctx.fillStyle = '#555'; ctx.fillRect(355, 650 + ball.pull, 30, 50);
+    // プランジャー（バネの密度）
+    ctx.shadowBlur = 0; ctx.fillStyle = '#333'; ctx.fillRect(405, 750 + ball.pull, 25, 120);
+    ctx.strokeStyle = '#888'; ctx.lineWidth = 2;
+    for(let i=0; i<15; i++) {
+        let py = 750 + (ball.pull/15 * i) + (i*5);
+        ctx.beginPath(); ctx.moveTo(405, py); ctx.lineTo(430, py); ctx.stroke();
+    }
+
+    // パーティクル
+    particles.forEach(p => {
+        ctx.globalAlpha = p.life; ctx.fillStyle = p.c;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+    });
+
+    ctx.restore();
 }
 
-function spawnCoins(x, y) {
-    for(let i=0; i<10; i++) coins.push({x:x, y:y, vx:(Math.random()-0.5)*300, vy:-250});
+// --- 入力系 ---
+function launchGame() {
+    document.getElementById('intro').style.display = 'none';
+    isRunning = true; setup(); resetBallPosition();
+    const tick = (t) => { update(0.016); draw(); requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
 }
-
-function resetBall() {
-    ball.active = false; ball.x = 365; ball.y = 635; ball.vx = 0; ball.vy = 0; ball.pull = 0;
-}
-
-// --- 操作系 ---
-let lastT = performance.now();
-function loop(t) {
-    update((t - lastT)/1000);
-    draw();
-    lastT = t;
-    requestAnimationFrame(loop);
-}
-
-document.getElementById('start-btn').addEventListener('click', () => {
-    document.getElementById('start-screen').style.display = 'none';
-    init(); resetBall();
-    requestAnimationFrame(loop);
-});
 
 window.addEventListener('touchstart', e => {
-    const x = e.touches[0].clientX - canvas.offsetLeft;
-    if (x > 340 && !ball.active) ball.isPulling = true;
-    else {
-        if (x < W/2) flippers[0].active = true;
-        else flippers[1].active = true;
-    }
-});
+    e.preventDefault(); const x = e.touches[0].clientX - cvs.offsetLeft;
+    if (x > 380 && !ball.active) ball.pulling = true;
+    else { if (x < W/2) flippers[0].target = -0.8; else flippers[1].target = 0.8; }
+}, {passive:false});
 
 window.addEventListener('touchend', () => {
-    if (ball.isPulling) {
-        ball.vy = -ball.pull * 14; ball.vx = -60;
-        ball.active = true; ball.isPulling = false;
+    if (ball.pulling) {
+        // 壁を確実に超える初速（1200+α）
+        ball.vy = -(1250 + ball.pull * 8); ball.vx = -180;
+        ball.active = true; ball.pulling = false;
     }
-    flippers.forEach(f => f.active = false);
+    flippers.forEach(f => f.target = f.base);
 });
 
-document.getElementById('debug-btn').addEventListener('click', () => {
-    let c = prompt("ENTER CODE");
-    if(c === "7777") { debugMode = true; alert("RUSH MODE ACTIVE"); }
-});
+function debugCommand() { if(prompt("ACCESS CODE")==="7777"){ winForce=true; startSlotSequence(); } }
 </script>
 </body>
 </html>
