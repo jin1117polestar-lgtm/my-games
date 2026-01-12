@@ -6,24 +6,21 @@
     <title>GALAXY HYBRID - FULL SPEC EDITION</title>
     <style>
         * { user-select: none; -webkit-user-select: none; touch-action: none; outline: none; }
-        body { background-color: #000; margin: 0; overflow: hidden; font-family: 'Arial Black', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        body { background-color: #000; margin: 0; overflow: hidden; font-family: 'Arial Black', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; position: fixed; width: 100%; }
         #main-container { position: relative; width: 450px; height: 800px; background: #000; border: 4px solid #444; overflow: hidden; box-shadow: 0 0 100px rgba(0,255,255,0.3); }
         
-        /* UI Layer */
         .ui-layer { position: absolute; top: 0; width: 100%; height: 80px; background: rgba(0,0,0,0.8); border-bottom: 2px solid #0ff; display: grid; grid-template-columns: repeat(4, 1fr); z-index: 1000; }
         .ui-box { border-right: 1px solid #222; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .ui-lbl { font-size: 9px; color: #0ff; }
         .ui-val { font-size: 18px; color: #fff; text-shadow: 0 0 8px #0ff; }
 
-        /* Slot Reel */
         #slot-area { position: absolute; top: 90px; left: 50%; transform: translateX(-50%); width: 260px; height: 90px; background: #000; border: 4px solid #f0f; border-radius: 15px; display: flex; justify-content: space-around; align-items: center; z-index: 900; box-shadow: 0 0 30px #f0f; }
-        .reel { font-size: 50px; color: #fff; font-weight: bold; }
+        .reel { font-size: 50px; color: #fff; font-weight: bold; width: 60px; text-align: center; }
         
         #fever-txt { position: absolute; top: 45%; width: 100%; text-align: center; font-size: 80px; color: #ff0; font-weight: bold; display: none; z-index: 2000; text-shadow: 0 0 40px #f00; pointer-events: none; }
         
-        canvas { position: absolute; top: 0; left: 0; z-index: 10; }
+        canvas { position: absolute; top: 0; left: 0; z-index: 10; width: 100%; height: 100%; }
 
-        /* Home Screen with Debug Password */
         #boot-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10000; }
         #debug-input { margin: 20px 0; padding: 10px; width: 200px; background: #222; border: 2px solid #0ff; color: #0ff; text-align: center; font-size: 18px; border-radius: 5px; }
         .btn { padding: 20px 40px; font-size: 24px; background: #0ff; border: none; border-radius: 50px; font-weight: bold; cursor: pointer; box-shadow: 0 0 30px #0ff; }
@@ -33,10 +30,10 @@
 
 <div id="main-container">
     <div class="ui-layer">
-        <div class="ui-box"><span class="ui-lbl">SCORE</span><span id="s-score">0</span></div>
-        <div class="ui-box"><span class="ui-lbl">MEDAL</span><span id="s-medal">0</span></div>
-        <div class="ui-box"><span class="ui-lbl">BALL</span><span id="s-ball">3</span></div>
-        <div class="ui-box"><span class="ui-lbl">COMBO</span><span id="s-combo">x1</span></div>
+        <div class="ui-box"><span class="ui-lbl">SCORE</span><span id="s-score" class="ui-val">0</span></div>
+        <div class="ui-box"><span class="ui-lbl">MEDAL</span><span id="s-medal" class="ui-val">0</span></div>
+        <div class="ui-box"><span class="ui-lbl">BALL</span><span id="s-ball" class="ui-val">3</span></div>
+        <div class="ui-box"><span class="ui-lbl">COMBO</span><span id="s-combo" class="ui-val">x1</span></div>
     </div>
     
     <div id="slot-area">
@@ -62,21 +59,18 @@ const ctx = canvas.getContext('2d');
 const W = 450, H = 800;
 canvas.width = W; canvas.height = H;
 
-// ゲームステート
 let score = 0, medal = 0, balls = 3, combo = 0, active = false, shake = 0, feverMode = 0;
 let isFrozen = false; 
-let isAlwaysFever = false; // デバッグ用
+let isAlwaysFever = false;
 
-// 初期レイアウト設定 (右レーンとバネを画面内に)
 const ball = {
-    x: 410, y: 650, vx: 0, vy: 0, r: 9,
+    x: 410, y: 700, vx: 0, vy: 0, r: 10,
     inPlay: false, pull: 0, isPulling: false, history: []
 };
 
 let stars = [], walls = [], bumpers = [], flippers = [], particles = [], items = [], pins = [];
 const slot = { active: false, res: [7,7,7], timers: [0,0,0] };
 
-// ハイスコア読み込み
 let hiScore = localStorage.getItem('galaxy_hi_score') || 0;
 document.getElementById('hi-score-disp').innerText = "HIGH SCORE: " + hiScore;
 
@@ -84,14 +78,9 @@ function checkPasswordAndStart() {
     const pw = document.getElementById('debug-input').value;
     if (pw === "1117") {
         localStorage.setItem('galaxy_hi_score', 0);
-        alert("High Score Reset");
-        location.reload();
-        return;
+        location.reload(); return;
     }
-    if (pw === "7777") {
-        isAlwaysFever = true;
-        alert("Always Fever Mode Active");
-    }
+    if (pw === "7777") isAlwaysFever = true;
     startGame();
 }
 
@@ -99,34 +88,33 @@ function initField() {
     stars = [];
     for(let i=0; i<100; i++) stars.push({x: Math.random()*W, y: Math.random()*H, s: Math.random()*2, a: Math.random()});
 
-    // 右レーンの可視化 (x=385から430)
     walls = [
-        {x1: 20, y1: 150, x2: 20, y2: 650, c: '#0ff'},
-        {x1: 20, y1: 650, x2: 130, y2: 730, c: '#0ff'}, 
-        {x1: 430, y1: 150, x2: 430, y2: 730, c: '#0ff'}, 
-        {x1: 385, y1: 220, x2: 385, y2: 730, c: '#0ff'}, 
-        {x1: 20, y1: 150, x2: 150, y2: 30, c: '#0ff'},
+        {x1: 15, y1: 150, x2: 15, y2: 650, c: '#0ff'},      // 左壁
+        {x1: 15, y1: 650, x2: 145, y2: 760, c: '#0ff'},    // 左斜面（隙間修正）
+        {x1: 435, y1: 150, x2: 435, y2: 760, c: '#0ff'},    // 右外壁
+        {x1: 385, y1: 220, x2: 385, y2: 760, c: '#0ff'},    // 右内壁（打ち出しレーン）
+        {x1: 15, y1: 150, x2: 150, y2: 30, c: '#0ff'},
         {x1: 150, y1: 30, x2: 300, y2: 30, c: '#0ff'},
-        {x1: 300, y1: 30, x2: 430, y2: 130, c: '#0ff'},
-        {x1: 385, y1: 180, x2: 430, y2: 130, c: '#444', isGate: true}
+        {x1: 300, y1: 30, x2: 435, y2: 130, c: '#0ff'},
+        {x1: 385, y1: 180, x2: 435, y2: 130, c: '#444', isGate: true} // 逆流防止ゲート
     ];
 
-    // パチンコ釘 (高密度配置で「もどかしさ」を演出)
+    // 釘：密度を下げ、反発を調整（もどかしさを残しつつスタックを防ぐ）
     pins = [];
-    for(let row=0; row<9; row++) {
-        let count = (row % 2 === 0) ? 8 : 9;
+    for(let row=0; row<7; row++) {
+        let count = (row % 2 === 0) ? 6 : 7;
         for(let i=0; i<count; i++) {
-            pins.push({ x: 55 + i*42 + (row%2? -21:0), y: 340 + row*38, r: 3.5 });
+            pins.push({ x: 75 + i*50 + (row%2? -25:0), y: 350 + row*45, r: 4 });
         }
     }
 
     flippers = [
-        {side: 'L', x: 145, y: 730, len: 85, angle: 0.4, target: 0.4, base: 0.4},
-        {side: 'R', x: 265, y: 730, len: 85, angle: -0.4, target: -0.4, base: -0.4}
+        {side: 'L', x: 145, y: 760, len: 90, angle: 0.5, target: 0.5, base: 0.5},
+        {side: 'R', x: 265, y: 760, len: 90, angle: -0.5, target: -0.5, base: -0.5}
     ];
 
     bumpers = [
-        {x: 205, y: 290, r: 35, c: '#f0f', hit: 0, type: 'slot'}, 
+        {x: 205, y: 300, r: 35, c: '#f0f', hit: 0, type: 'slot'}, 
         {x: 100, y: 280, r: 30, c: '#0ff', hit: 0, type: 'score'},
         {x: 310, y: 280, r: 30, c: '#0ff', hit: 0, type: 'score'}
     ];
@@ -136,10 +124,10 @@ function update(dt) {
     if (!active || isFrozen) return;
     if (shake > 0) shake *= 0.85;
 
-    const steps = 15, sdt = dt / steps;
+    const steps = 10, sdt = dt / steps;
     for(let s=0; s<steps; s++) {
         if (ball.inPlay) {
-            ball.vy += 1200 * sdt; 
+            ball.vy += 1500 * sdt; 
             ball.x += ball.vx * sdt; ball.y += ball.vy * sdt;
 
             walls.forEach(w => { if (!(w.isGate && ball.vy < 0)) resolveWall(ball, w); });
@@ -148,22 +136,23 @@ function update(dt) {
                 if (dist < ball.r + p.r) {
                     let nx = dx/dist, ny = dy/dist; ball.x = p.x + nx * (ball.r + p.r);
                     let dot = ball.vx*nx + ball.vy*ny;
-                    ball.vx = (ball.vx - 2*dot*nx) * 0.45; // 釘での跳ね返りを弱め、停滞させる
-                    ball.vy = (ball.vy - 2*dot*ny) * 0.45;
+                    ball.vx = (ball.vx - 2*dot*nx) * 0.65; // 反発を少し強化
+                    ball.vy = (ball.vy - 2*dot*ny) * 0.65;
                     score += 5;
                 }
             });
             flippers.forEach(f => {
                 const dir = f.side === 'L' ? 1 : -1;
                 const x2 = f.x + Math.cos(f.angle) * f.len * dir, y2 = f.y + Math.sin(f.angle) * f.len * dir;
-                resolveWall(ball, {x1: f.x, y1: f.y, x2: x2, y2: y2}, Math.abs(f.angle - f.target) > 0.1 ? 1400 : 0);
+                // フリッパー回転中（打撃時）は強い上方向のベクトルを加える
+                resolveWall(ball, {x1: f.x, y1: f.y, x2: x2, y2: y2}, Math.abs(f.angle - f.target) > 0.1 ? 1600 : 0);
             });
             bumpers.forEach(b => {
                 let dx = ball.x - b.x, dy = ball.y - b.y, dist = Math.sqrt(dx*dx+dy*dy);
                 if (dist < ball.r + b.r) {
                     let nx = dx/dist, ny = dy/dist; ball.x = b.x + nx * (ball.r + b.r);
                     let dot = ball.vx*nx + ball.vy*ny;
-                    ball.vx = (ball.vx - 2*dot*nx) * 1.6; ball.vy = (ball.vy - 2*dot*ny) * 1.6;
+                    ball.vx = (ball.vx - 2*dot*nx) * 1.8; ball.vy = (ball.vy - 2*dot*ny) * 1.8;
                     b.hit = 15; score += 100 * (combo + 1); combo++;
                     if (b.type === 'slot' && !slot.active) triggerSlotEntry();
                     createParticles(ball.x, ball.y, b.c, 15);
@@ -206,8 +195,9 @@ function update(dt) {
 
     if (ball.inPlay) {
         ball.history.push({x: ball.x, y: ball.y});
-        if (ball.history.length > 10) ball.history.shift();
+        if (ball.history.length > 8) ball.history.shift();
     }
+    
     if (ball.y > H + 50) { 
         balls--; combo = 0; 
         if (balls <= 0) {
@@ -222,11 +212,11 @@ function update(dt) {
 }
 
 function triggerSlotEntry() {
-    isFrozen = true; // 入賞時のフリーズ（注目演出）
+    isFrozen = true;
     slot.active = true;
     slot.timers = [1.5, 2.2, 3.0];
-    createParticles(205, 290, '#f0f', 40);
-    setTimeout(() => { isFrozen = false; }, 800); 
+    createParticles(205, 300, '#f0f', 40);
+    setTimeout(() => { isFrozen = false; }, 600); 
 }
 
 function resolveWall(b, l, kick = 0) {
@@ -234,10 +224,14 @@ function resolveWall(b, l, kick = 0) {
     let t = Math.max(0, Math.min(1, ((b.x-l.x1)*dx + (b.y-l.y1)*dy) / lenSq));
     let cx = l.x1 + t*dx, cy = l.y1 + t*dy, dist = Math.sqrt((b.x-cx)**2 + (b.y-cy)**2);
     if (dist < b.r) {
-        let nx = (b.x-cx)/dist, ny = (b.y-cy)/dist; b.x = cx + nx * (b.r + 0.1); b.y = cy + ny * (b.r + 0.1);
+        let nx = (b.x-cx)/dist, ny = (b.y-cy)/dist; 
+        b.x = cx + nx * (b.r + 0.1); b.y = cy + ny * (b.r + 0.1);
         let dot = b.vx*nx + b.vy*ny;
-        if (dot < 0) { b.vx = (b.vx - 2*dot*nx) * 0.7; b.vy = (b.vy - 2*dot*ny) * 0.7; }
-        if (kick > 0) { b.vy -= kick; b.vx += (b.x - l.x1) * 2; }
+        if (dot < 0) { b.vx = (b.vx - 2*dot*nx) * 0.75; b.vy = (b.vy - 2*dot*ny) * 0.75; }
+        if (kick > 0) { 
+            b.vy = -kick; // 垂直方向に強く弾く
+            b.vx += (b.x - l.x1) * 3; 
+        }
     }
 }
 
@@ -262,7 +256,7 @@ function draw() {
         ctx.fillStyle = b.c; ctx.shadowBlur = b.hit * 2; ctx.shadowColor = b.c;
         ctx.beginPath(); ctx.arc(b.x, b.y, b.r + b.hit*0.5, 0, Math.PI*2); ctx.fill();
         ctx.shadowBlur = 0;
-        if (b.type === 'slot') { ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Arial'; ctx.fillText("CHUCKER", b.x-28, b.y+5); }
+        if (b.type === 'slot') { ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Arial'; ctx.textAlign="center"; ctx.fillText("SLOT", b.x, b.y+5); }
     });
 
     flippers.forEach(f => {
@@ -272,20 +266,20 @@ function draw() {
         ctx.restore();
     });
 
+    // プランジャー描画（ボールの下に描画）
+    ctx.fillStyle = '#333'; ctx.fillRect(395, 710 + ball.pull, 30, 100);
+    for(let i=0; i<8; i++) {
+        ctx.strokeStyle = '#888'; ctx.beginPath();
+        let py = 710 + (ball.pull * (i/8));
+        ctx.moveTo(395, py); ctx.lineTo(425, py); ctx.stroke();
+    }
+
     ball.history.forEach((h, i) => {
-        ctx.globalAlpha = i/10 * 0.3; ctx.fillStyle = '#0ff';
+        ctx.globalAlpha = i/8 * 0.3; ctx.fillStyle = '#0ff';
         ctx.beginPath(); ctx.arc(h.x, h.y, ball.r, 0, Math.PI*2); ctx.fill();
     });
     ctx.globalAlpha = 1.0; ctx.fillStyle = '#eee';
     ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2); ctx.fill();
-
-    // プランジャー (バネ)
-    ctx.fillStyle = '#333'; ctx.fillRect(395, 660 + ball.pull, 30, 100);
-    for(let i=0; i<10; i++) {
-        ctx.strokeStyle = '#888'; ctx.beginPath();
-        let py = 660 + (ball.pull * (i/10));
-        ctx.moveTo(395, py); ctx.lineTo(425, py); ctx.stroke();
-    }
 
     items.forEach(it => { ctx.fillStyle='#fd0'; ctx.beginPath(); ctx.arc(it.x, it.y, 10, 0, Math.PI*2); ctx.fill(); });
     particles.forEach(p => { ctx.globalAlpha = p.life; ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, 2.5, 0, Math.PI*2); ctx.fill(); });
@@ -295,7 +289,7 @@ function createParticles(x, y, c, count) {
     for(let i=0; i<count; i++) particles.push({x:x, y:y, vx:(Math.random()-0.5)*700, vy:(Math.random()-0.5)*700, life:0.8, c:c});
 }
 
-function resetBall() { ball.inPlay = false; ball.x = 410; ball.y = 650; ball.vx = 0; ball.vy = 0; ball.pull = 0; ball.history = []; }
+function resetBall() { ball.inPlay = false; ball.x = 410; ball.y = 700; ball.vx = 0; ball.vy = 0; ball.pull = 0; ball.history = []; }
 function updateUI() { 
     document.getElementById('s-score').innerText = Math.floor(score);
     document.getElementById('s-medal').innerText = medal;
@@ -312,22 +306,40 @@ function startGame() {
     requestAnimationFrame(loop);
 }
 
-window.addEventListener('touchstart', e => {
+// iPhone用座標取得・マルチタッチ対応
+function handleTouch(e) {
     if(!active) return;
-    const tx = e.touches[0].clientX - canvas.offsetLeft;
-    if (tx > 360 && !ball.inPlay) ball.isPulling = true;
-    else { if (tx < W/2) flippers[0].target = -0.7; else flippers[1].target = 0.7; }
-}, {passive:false});
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = W / rect.width;
+    const scaleY = H / rect.height;
 
-window.addEventListener('touchend', () => {
-    if (ball.isPulling) {
-        ball.vy = -(1250 + ball.pull * 12);
-        ball.vx = -120;
-        ball.inPlay = true;
-        ball.isPulling = false;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        const tx = (t.clientX - rect.left) * scaleX;
+        const ty = (t.clientY - rect.top) * scaleY;
+
+        if (e.type === 'touchstart') {
+            if (tx > 360 && !ball.inPlay) {
+                ball.isPulling = true;
+            } else {
+                if (tx < W/2) flippers[0].target = -0.7; 
+                else flippers[1].target = 0.7;
+            }
+        } else if (e.type === 'touchend') {
+            if (ball.isPulling) {
+                ball.vy = -(1400 + ball.pull * 15);
+                ball.vx = -120;
+                ball.inPlay = true;
+                ball.isPulling = false;
+            }
+            if (tx < W/2) flippers[0].target = flippers[0].base;
+            else flippers[1].target = flippers[1].base;
+        }
     }
-    flippers.forEach(f => f.target = f.base);
-});
+}
+
+window.addEventListener('touchstart', handleTouch, {passive:false});
+window.addEventListener('touchend', handleTouch, {passive:false});
 </script>
 </body>
 </html>
