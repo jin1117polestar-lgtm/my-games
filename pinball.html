@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GALAXY HYBRID - FULL SPEC EDITION</title>
+    <title>GALAXY HYBRID - EVOLUTION (STABLE)</title>
     <style>
         * { user-select: none; -webkit-user-select: none; touch-action: none; outline: none; }
         body { background-color: #000; margin: 0; overflow: hidden; font-family: 'Arial Black', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; position: fixed; width: 100%; }
@@ -12,18 +12,19 @@
         .ui-layer { position: absolute; top: 0; width: 100%; height: 80px; background: rgba(0,0,0,0.8); border-bottom: 2px solid #0ff; display: grid; grid-template-columns: repeat(4, 1fr); z-index: 1000; }
         .ui-box { border-right: 1px solid #222; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .ui-lbl { font-size: 9px; color: #0ff; }
-        .ui-val { font-size: 18px; color: #fff; text-shadow: 0 0 8px #0ff; }
+        .ui-val { font-size: 16px; color: #fff; text-shadow: 0 0 8px #0ff; }
 
         #slot-area { position: absolute; top: 90px; left: 50%; transform: translateX(-50%); width: 260px; height: 90px; background: #000; border: 4px solid #f0f; border-radius: 15px; display: flex; justify-content: space-around; align-items: center; z-index: 900; box-shadow: 0 0 30px #f0f; }
         .reel { font-size: 50px; color: #fff; font-weight: bold; width: 60px; text-align: center; }
         
         #fever-txt { position: absolute; top: 45%; width: 100%; text-align: center; font-size: 80px; color: #ff0; font-weight: bold; display: none; z-index: 2000; text-shadow: 0 0 40px #f00; pointer-events: none; }
         
-        canvas { position: absolute; top: 0; left: 0; z-index: 10; width: 100%; height: 100%; }
+        canvas { position: absolute; top: 0; left: 0; z-index: 10; width: 100%; height: 100%; image-rendering: -webkit-optimize-contrast; }
 
         #boot-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10000; }
         #debug-input { margin: 20px 0; padding: 10px; width: 200px; background: #222; border: 2px solid #0ff; color: #0ff; text-align: center; font-size: 18px; border-radius: 5px; }
         .btn { padding: 20px 40px; font-size: 24px; background: #0ff; border: none; border-radius: 50px; font-weight: bold; cursor: pointer; box-shadow: 0 0 30px #0ff; }
+        .guide-txt { color: #555; font-size: 12px; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -50,6 +51,7 @@
         <p id="hi-score-disp" style="color:#aaa; font-size:12px;">HIGH SCORE: 0</p>
         <input type="text" id="debug-input" placeholder="PASSWORD" maxlength="4">
         <button class="btn" onclick="checkPasswordAndStart()">START GAME</button>
+        <p class="guide-txt">RIGHT SIDE LONG PRESS TO SHOOT / LEFT & RIGHT TAP TO FLIP</p>
     </div>
 </div>
 
@@ -57,29 +59,36 @@
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 const W = 450, H = 800;
-canvas.width = W; canvas.height = H;
+
+// 【改善5】高解像度対応 (DevicePixelRatio)
+const dpr = window.devicePixelRatio || 1;
+canvas.width = W * dpr;
+canvas.height = H * dpr;
+ctx.scale(dpr, dpr);
 
 let score = 0, medal = 0, balls = 3, combo = 0, active = false, shake = 0, feverMode = 0;
-let isFrozen = false; 
+let timeScale = 1.0;
 let isAlwaysFever = false;
+let stackTimer = 0;
 
 const ball = {
     x: 410, y: 700, vx: 0, vy: 0, r: 10,
-    inPlay: false, pull: 0, isPulling: false, history: []
+    inPlay: false, pull: 0, isPulling: false, history: [],
+    MAX_SPEED: 1800 // 【改善2】突き抜け防止の速度上限
 };
 
 let stars = [], walls = [], bumpers = [], flippers = [], particles = [], items = [], pins = [];
 const slot = { active: false, res: [7,7,7], timers: [0,0,0] };
+
+// 【改善1】マルチタッチ管理用のMap
+const activeTouches = new Map();
 
 let hiScore = localStorage.getItem('galaxy_hi_score') || 0;
 document.getElementById('hi-score-disp').innerText = "HIGH SCORE: " + hiScore;
 
 function checkPasswordAndStart() {
     const pw = document.getElementById('debug-input').value;
-    if (pw === "1117") {
-        localStorage.setItem('galaxy_hi_score', 0);
-        location.reload(); return;
-    }
+    if (pw === "1117") { localStorage.setItem('galaxy_hi_score', 0); location.reload(); return; }
     if (pw === "7777") isAlwaysFever = true;
     startGame();
 }
@@ -89,22 +98,25 @@ function initField() {
     for(let i=0; i<100; i++) stars.push({x: Math.random()*W, y: Math.random()*H, s: Math.random()*2, a: Math.random()});
 
     walls = [
-        {x1: 15, y1: 150, x2: 15, y2: 650, c: '#0ff'},      // 左壁
-        {x1: 15, y1: 650, x2: 145, y2: 760, c: '#0ff'},    // 左斜面（隙間修正）
-        {x1: 435, y1: 150, x2: 435, y2: 760, c: '#0ff'},    // 右外壁
-        {x1: 385, y1: 220, x2: 385, y2: 760, c: '#0ff'},    // 右内壁（打ち出しレーン）
+        {x1: 15, y1: 150, x2: 15, y2: 650, c: '#0ff'},      
+        {x1: 15, y1: 650, x2: 145, y2: 760, c: '#0ff'},    
+        {x1: 435, y1: 150, x2: 435, y2: 760, c: '#0ff'},    
+        {x1: 385, y1: 220, x2: 385, y2: 760, c: '#0ff'},    
         {x1: 15, y1: 150, x2: 150, y2: 30, c: '#0ff'},
         {x1: 150, y1: 30, x2: 300, y2: 30, c: '#0ff'},
         {x1: 300, y1: 30, x2: 435, y2: 130, c: '#0ff'},
-        {x1: 385, y1: 180, x2: 435, y2: 130, c: '#444', isGate: true} // 逆流防止ゲート
+        {x1: 385, y1: 180, x2: 435, y2: 130, c: '#444', isGate: true} 
     ];
 
-    // 釘：密度を下げ、反発を調整（もどかしさを残しつつスタックを防ぐ）
     pins = [];
-    for(let row=0; row<7; row++) {
-        let count = (row % 2 === 0) ? 6 : 7;
+    for(let row=0; row<6; row++) {
+        let count = (row % 2 === 0) ? 5 : 4;
         for(let i=0; i<count; i++) {
-            pins.push({ x: 75 + i*50 + (row%2? -25:0), y: 350 + row*45, r: 4 });
+            let px = 85 + i*65 + (row%2? 32:0);
+            let py = 380 + row*50;
+            if (Math.abs(px - 205) > 60 || Math.abs(py - 300) > 100) {
+                pins.push({ x: px, y: py, r: 4 });
+            }
         }
     }
 
@@ -114,21 +126,44 @@ function initField() {
     ];
 
     bumpers = [
-        {x: 205, y: 300, r: 35, c: '#f0f', hit: 0, type: 'slot'}, 
-        {x: 100, y: 280, r: 30, c: '#0ff', hit: 0, type: 'score'},
-        {x: 310, y: 280, r: 30, c: '#0ff', hit: 0, type: 'score'}
+        {x: 205, y: 310, r: 38, c: '#f0f', hit: 0, type: 'slot'}, 
+        {x: 90, y: 260, r: 32, c: '#0ff', hit: 0, type: 'score'},
+        {x: 320, y: 260, r: 32, c: '#0ff', hit: 0, type: 'score'}
     ];
 }
 
 function update(dt) {
-    if (!active || isFrozen) return;
+    if (!active) return;
+    dt *= timeScale;
+
     if (shake > 0) shake *= 0.85;
 
-    const steps = 10, sdt = dt / steps;
+    // 【改善2】分割ステップ(CCD)を維持しつつ速度をクランプ
+    const steps = 15;
+    const sdt = dt / steps;
+    
     for(let s=0; s<steps; s++) {
         if (ball.inPlay) {
-            ball.vy += 1500 * sdt; 
+            ball.vy += 1600 * sdt; 
+            
+            // 速度上限の適用
+            const speed = Math.sqrt(ball.vx**2 + ball.vy**2);
+            if(speed > ball.MAX_SPEED) {
+                ball.vx = (ball.vx / speed) * ball.MAX_SPEED;
+                ball.vy = (ball.vy / speed) * ball.MAX_SPEED;
+            }
+
             ball.x += ball.vx * sdt; ball.y += ball.vy * sdt;
+
+            // 【改善4】スタック検知時の微細な振動（ワープ感を抑制）
+            if (Math.abs(ball.vx) < 5 && Math.abs(ball.vy) < 5) {
+                stackTimer += sdt;
+                if (stackTimer > 0.5) { 
+                    ball.vx += (Math.random()-0.5)*150; 
+                    ball.vy -= 100; 
+                    stackTimer = 0; 
+                }
+            } else { stackTimer = 0; }
 
             walls.forEach(w => { if (!(w.isGate && ball.vy < 0)) resolveWall(ball, w); });
             pins.forEach(p => {
@@ -136,16 +171,16 @@ function update(dt) {
                 if (dist < ball.r + p.r) {
                     let nx = dx/dist, ny = dy/dist; ball.x = p.x + nx * (ball.r + p.r);
                     let dot = ball.vx*nx + ball.vy*ny;
-                    ball.vx = (ball.vx - 2*dot*nx) * 0.65; // 反発を少し強化
-                    ball.vy = (ball.vy - 2*dot*ny) * 0.65;
-                    score += 5;
+                    ball.vx = (ball.vx - 2*dot*nx) * 0.7; 
+                    ball.vy = (ball.vy - 2*dot*ny) * 0.7;
+                    score += 10;
                 }
             });
             flippers.forEach(f => {
                 const dir = f.side === 'L' ? 1 : -1;
                 const x2 = f.x + Math.cos(f.angle) * f.len * dir, y2 = f.y + Math.sin(f.angle) * f.len * dir;
-                // フリッパー回転中（打撃時）は強い上方向のベクトルを加える
-                resolveWall(ball, {x1: f.x, y1: f.y, x2: x2, y2: y2}, Math.abs(f.angle - f.target) > 0.1 ? 1600 : 0);
+                let kick = Math.abs(f.angle - f.target) > 0.1 ? 2000 : 0;
+                resolveWall(ball, {x1: f.x, y1: f.y, x2: x2, y2: y2}, kick);
             });
             bumpers.forEach(b => {
                 let dx = ball.x - b.x, dy = ball.y - b.y, dist = Math.sqrt(dx*dx+dy*dy);
@@ -153,7 +188,7 @@ function update(dt) {
                     let nx = dx/dist, ny = dy/dist; ball.x = b.x + nx * (ball.r + b.r);
                     let dot = ball.vx*nx + ball.vy*ny;
                     ball.vx = (ball.vx - 2*dot*nx) * 1.8; ball.vy = (ball.vy - 2*dot*ny) * 1.8;
-                    b.hit = 15; score += 100 * (combo + 1); combo++;
+                    b.hit = 15; score += 100 * (1 + Math.floor(combo/5)); combo++;
                     if (b.type === 'slot' && !slot.active) triggerSlotEntry();
                     createParticles(ball.x, ball.y, b.c, 15);
                     shake = 10;
@@ -167,18 +202,19 @@ function update(dt) {
     if (slot.active) {
         slot.timers.forEach((t, i) => {
             if (t > 0) {
-                slot.timers[i] -= dt;
+                slot.timers[i] -= dt / timeScale;
                 slot.res[i] = isAlwaysFever ? 7 : Math.floor(Math.random()*10);
                 document.getElementById('re'+i).innerText = slot.res[i];
             }
         });
         if (slot.timers[2] <= 0) {
             if (slot.res.every(v => v === slot.res[0])) {
-                feverMode = 20;
+                feverMode = 15;
                 document.getElementById('fever-txt').style.display = 'block';
             }
-            if (slot.timers[2] < -2.0) {
+            if (slot.timers[2] < -1.5) {
                 slot.active = false;
+                timeScale = 1.0;
                 document.getElementById('fever-txt').style.display = 'none';
             }
         }
@@ -186,12 +222,12 @@ function update(dt) {
 
     if (feverMode > 0) {
         feverMode -= dt;
-        if (Math.random() < 0.25) items.push({x: Math.random()*300+50, y: 0, vy: 350});
+        if (Math.random() < 0.2) items.push({x: Math.random()*300+50, y: 0, vy: 400});
     }
 
     flippers.forEach(f => f.angle += (f.target - f.angle) * 35 * dt);
     particles.forEach((p, i) => { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; if (p.life <= 0) particles.splice(i, 1); });
-    items.forEach((it, i) => { it.y += it.vy * dt; if (it.y > H) { items.splice(i, 1); medal++; score += 1000; } });
+    items.forEach((it, i) => { it.y += it.vy * dt; if (it.y > H) { items.splice(i, 1); medal++; score += 5000; } });
 
     if (ball.inPlay) {
         ball.history.push({x: ball.x, y: ball.y});
@@ -201,8 +237,8 @@ function update(dt) {
     if (ball.y > H + 50) { 
         balls--; combo = 0; 
         if (balls <= 0) {
-            if (score > hiScore) localStorage.setItem('galaxy_hi_score', score);
-            alert("GAME OVER\nSCORE: " + score);
+            if (score > hiScore) localStorage.setItem('galaxy_hi_score', Math.floor(score));
+            alert("GAME OVER\nSCORE: " + Math.floor(score));
             location.reload();
         } else {
             resetBall(); 
@@ -212,11 +248,10 @@ function update(dt) {
 }
 
 function triggerSlotEntry() {
-    isFrozen = true;
     slot.active = true;
-    slot.timers = [1.5, 2.2, 3.0];
-    createParticles(205, 300, '#f0f', 40);
-    setTimeout(() => { isFrozen = false; }, 600); 
+    timeScale = 0.1;
+    slot.timers = [1.2, 1.8, 2.5];
+    createParticles(205, 310, '#f0f', 40);
 }
 
 function resolveWall(b, l, kick = 0) {
@@ -229,14 +264,14 @@ function resolveWall(b, l, kick = 0) {
         let dot = b.vx*nx + b.vy*ny;
         if (dot < 0) { b.vx = (b.vx - 2*dot*nx) * 0.75; b.vy = (b.vy - 2*dot*ny) * 0.75; }
         if (kick > 0) { 
-            b.vy = -kick; // 垂直方向に強く弾く
-            b.vx += (b.x - l.x1) * 3; 
+            b.vy = -kick; 
+            b.vx += (b.x - (l.x1+l.x2)/2) * 12; 
         }
     }
 }
 
 function draw() {
-    ctx.setTransform(1,0,0,1,0,0);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.clearRect(0, 0, W, H);
     if (shake > 0) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
 
@@ -257,6 +292,7 @@ function draw() {
         ctx.beginPath(); ctx.arc(b.x, b.y, b.r + b.hit*0.5, 0, Math.PI*2); ctx.fill();
         ctx.shadowBlur = 0;
         if (b.type === 'slot') { ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Arial'; ctx.textAlign="center"; ctx.fillText("SLOT", b.x, b.y+5); }
+        if (b.hit > 0) b.hit--;
     });
 
     flippers.forEach(f => {
@@ -266,13 +302,7 @@ function draw() {
         ctx.restore();
     });
 
-    // プランジャー描画（ボールの下に描画）
     ctx.fillStyle = '#333'; ctx.fillRect(395, 710 + ball.pull, 30, 100);
-    for(let i=0; i<8; i++) {
-        ctx.strokeStyle = '#888'; ctx.beginPath();
-        let py = 710 + (ball.pull * (i/8));
-        ctx.moveTo(395, py); ctx.lineTo(425, py); ctx.stroke();
-    }
 
     ball.history.forEach((h, i) => {
         ctx.globalAlpha = i/8 * 0.3; ctx.fillStyle = '#0ff';
@@ -291,10 +321,10 @@ function createParticles(x, y, c, count) {
 
 function resetBall() { ball.inPlay = false; ball.x = 410; ball.y = 700; ball.vx = 0; ball.vy = 0; ball.pull = 0; ball.history = []; }
 function updateUI() { 
-    document.getElementById('s-score').innerText = Math.floor(score);
+    document.getElementById('s-score').innerText = Math.floor(score).toLocaleString();
     document.getElementById('s-medal').innerText = medal;
     document.getElementById('s-ball').innerText = balls;
-    document.getElementById('s-combo').innerText = 'x' + (1 + Math.floor(combo/10));
+    document.getElementById('s-combo').innerText = 'x' + (1 + Math.floor(combo/5));
 }
 
 function startGame() {
@@ -306,40 +336,49 @@ function startGame() {
     requestAnimationFrame(loop);
 }
 
-// iPhone用座標取得・マルチタッチ対応
+// 【改善1 & 3】マルチタッチ管理とブラウザ干渉防止
 function handleTouch(e) {
     if(!active) return;
+    e.preventDefault(); // ブラウザのスクロール等を防止
+
     const rect = canvas.getBoundingClientRect();
     const scaleX = W / rect.width;
-    const scaleY = H / rect.height;
 
     for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
         const tx = (t.clientX - rect.left) * scaleX;
-        const ty = (t.clientY - rect.top) * scaleY;
+        const id = t.identifier;
 
         if (e.type === 'touchstart') {
             if (tx > 360 && !ball.inPlay) {
                 ball.isPulling = true;
+                activeTouches.set(id, 'SHOOT');
+            } else if (tx < W/2) {
+                flippers[0].target = -0.7;
+                activeTouches.set(id, 'LEFT');
             } else {
-                if (tx < W/2) flippers[0].target = -0.7; 
-                else flippers[1].target = 0.7;
+                flippers[1].target = 0.7;
+                activeTouches.set(id, 'RIGHT');
             }
-        } else if (e.type === 'touchend') {
-            if (ball.isPulling) {
-                ball.vy = -(1400 + ball.pull * 15);
-                ball.vx = -120;
-                ball.inPlay = true;
-                ball.isPulling = false;
+        } else if (e.type === 'touchend' || e.type === 'touchcancel') {
+            const action = activeTouches.get(id);
+            if (action === 'SHOOT' && ball.isPulling) {
+                ball.vy = -(1400 + ball.pull * 22);
+                ball.vx = -120 - (Math.random() * 80);
+                ball.inPlay = true; ball.isPulling = false;
+            } else if (action === 'LEFT') {
+                flippers[0].target = flippers[0].base;
+            } else if (action === 'RIGHT') {
+                flippers[1].target = flippers[1].base;
             }
-            if (tx < W/2) flippers[0].target = flippers[0].base;
-            else flippers[1].target = flippers[1].base;
+            activeTouches.delete(id);
         }
     }
 }
 
 window.addEventListener('touchstart', handleTouch, {passive:false});
 window.addEventListener('touchend', handleTouch, {passive:false});
+window.addEventListener('touchcancel', handleTouch, {passive:false});
 </script>
 </body>
 </html>
