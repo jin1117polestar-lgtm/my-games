@@ -2,429 +2,343 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>INVADER EVO: ULTIMATE PERFECT</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>INVADER EVO: OVERDRIVE</title>
     <style>
-        :root { --main-color: #0af; --accent-color: #f0f; --danger-color: #f33; }
-        html, body { 
-            background: #000; color: #fff; text-align: center; 
-            font-family: 'Segoe UI', sans-serif; 
-            overflow: hidden; margin: 0; width: 100%; height: 100%;
-            touch-action: none; -webkit-user-select: none;
-            overscroll-behavior-y: none;
-        }
-        #game-container { 
-            display: flex; flex-direction: column; height: 100vh; 
-            position: relative; max-width: 500px; margin: 0 auto; background: #000;
-        }
-        .ui-top { 
-            height: 70px; display: flex; justify-content: space-around; align-items: center; 
-            background: rgba(10, 10, 30, 0.9); border-bottom: 1px solid rgba(0, 170, 255, 0.3); z-index: 10;
-        }
-        .stat-box { display: flex; flex-direction: column; }
-        .stat-label { font-size: 9px; color: var(--main-color); letter-spacing: 1px; }
-        .stat-val { font-size: 18px; font-weight: bold; text-shadow: 0 0 10px var(--main-color); }
-
-        #screen-area { position: relative; flex-grow: 1; width: 100%; overflow: hidden; }
-        canvas { display: block; width: 100%; height: 100%; object-fit: contain; }
-
-        #stage-announcement { 
-            position: absolute; width: 100%; top: 40%; transform: translateY(-50%);
-            font-size: 32px; font-weight: 900; color: #fff; text-shadow: 0 0 20px var(--main-color);
-            pointer-events: none; opacity: 0; transition: opacity 0.5s; z-index: 50;
-        }
-
-        #boss-hp-container { 
-            position: absolute; top: 10px; left: 10%; width: 80%; height: 6px; 
-            background: rgba(255,0,0,0.2); border: 1px solid var(--danger-color); 
-            border-radius: 3px; display: none; overflow: hidden;
-        }
-        #boss-hp-bar { height: 100%; background: linear-gradient(90deg, #f00, #ff0); width: 100%; }
-
-        .overlay { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.9); display: flex; flex-direction: column; 
-            justify-content: center; align-items: center; z-index: 100; backdrop-filter: blur(8px);
-        }
+        /* 既存のスタイルを継承しつつ、ゲージ用スタイルを追加 */
+        html, body { background: #000; color: #fff; text-align: center; font-family: 'Courier New', sans-serif; overflow: hidden; touch-action: none; margin: 0; width: 100%; height: 100%; -webkit-user-select: none; }
+        #game-container { display: flex; flex-direction: column; height: 100vh; position: relative; }
+        .ui-top { height: 80px; display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center; background: rgba(10, 10, 20, 0.9); color: #0f0; font-size: 11px; border-bottom: 2px solid #0af; padding-top: env(safe-area-inset-top); z-index: 10; }
+        #screen-area { position: relative; flex-grow: 1; width: 100%; background: radial-gradient(circle, #001 0%, #000 100%); overflow: hidden; }
+        canvas { display: block; margin: 0 auto; width: 100%; height: 100%; object-fit: contain; }
+        #touch-area { height: 100px; background: #050505; display: flex; flex-direction: column; align-items: center; justify-content: center; border-top: 1px solid #333; padding-bottom: env(safe-area-inset-bottom); }
         
-        button { 
-            padding: 15px 40px; font-size: 18px; background: transparent; 
-            color: var(--main-color); border: 2px solid var(--main-color); 
-            border-radius: 50px; cursor: pointer; transition: 0.3s;
-            font-weight: bold; box-shadow: 0 0 15px rgba(0, 170, 255, 0.4);
-        }
-        button:active { background: var(--main-color); color: #000; }
-
-        #sp-gauge-container { 
-            position: absolute; bottom: 20px; left: 10%; width: 80%; height: 4px; 
-            background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; 
-        }
-        #sp-gauge-fill { height: 100%; width: 0%; background: var(--main-color); }
-
-        .shining-title { 
-            font-size: 42px; margin: 0; background: linear-gradient(#fff, var(--main-color));
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            filter: drop-shadow(0 0 10px var(--main-color));
-        }
+        /* スペシャルゲージ */
+        #sp-gauge-container { position: absolute; bottom: 10px; left: 10%; width: 80%; height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
+        #sp-gauge-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #0af, #fff); transition: width 0.1s; box-shadow: 0 0 10px #0af; }
+        
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+        button { padding: 15px 40px; font-size: 20px; background: #0af; color: #fff; border: none; font-weight: bold; border-radius: 5px; cursor: pointer; box-shadow: 0 0 15px #0af; }
+        .stat-val { color: #fff; font-size: 16px; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div id="game-container">
     <div class="ui-top">
-        <div class="stat-box"><span class="stat-label">SCORE</span><span id="score" class="stat-val">0</span></div>
-        <div class="stat-box"><span class="stat-label">LIFE</span><span id="life" class="stat-val">3</span></div>
-        <div class="stat-box"><span class="stat-label">COMBO</span><span id="combo" class="stat-val">x1.0</span></div>
+        <div>SCORE <br><span id="score" class="stat-val">0</span></div>
+        <div>LIFE <br><span id="life" class="stat-val">3</span></div>
+        <div>WAVE <br><span id="wave" class="stat-val">1</span></div>
+        <div>COMBO <br><span id="combo" class="stat-val" style="color:#0af">x1.0</span></div>
     </div>
     
     <div id="screen-area">
-        <div id="stage-announcement">MISSION START</div>
-        <div id="boss-hp-container"><div id="boss-hp-bar"></div></div>
-        <canvas id="gameCanvas" width="450" height="600"></canvas>
+        <div id="boss-hp-container" style="position:absolute; top:10px; left:10%; width:80%; height:8px; border:1px solid #f00; display:none;">
+            <div id="boss-hp-bar" style="width:100%; height:100%; background:#f00;"></div>
+        </div>
+        
+        <canvas id="gameCanvas" width="400" height="500"></canvas>
+        
         <div id="sp-gauge-container"><div id="sp-gauge-fill"></div></div>
 
         <div id="start-screen" class="overlay">
-            <h1 class="shining-title">INVADER EVO</h1>
-            <p style="color:var(--main-color); letter-spacing: 4px; font-size:10px; margin-bottom:40px;">PERFECT EDITION</p>
-            <button onclick="Game.start()">INITIALIZE MISSION</button>
+            <h1 style="color:#0af; margin:0; font-size: 32px; text-shadow: 0 0 20px #0af;">INVADER EVO</h1>
+            <p style="color:#fff; font-size:14px; margin-bottom: 20px;">OVERDRIVE EDITION</p>
+            <button onclick="startGame()">MISSION START</button>
         </div>
 
         <div id="result-screen" class="overlay" style="display:none">
-            <h2 id="result-msg" style="color:var(--main-color); font-size:28px;">MISSION FAILED</h2>
-            <div id="final-stats" style="margin-bottom:30px; line-height:2; font-size: 14px;"></div>
-            <button onclick="location.reload()">RE-ENGAGE</button>
+            <h2 id="result-msg" style="color:#0af;">MISSION COMPLETE</h2>
+            <div id="final-stats" style="margin-bottom:20px; line-height: 1.8;"></div>
+            <button onclick="location.reload()">RETRY</button>
         </div>
+    </div>
+
+    <div id="touch-area">
+        <div id="buff-status" style="font-weight:bold; height:20px; color:#0af; font-size:14px;"></div>
+        <div style="color:#555; font-size:10px; margin-top:5px;">CHARGE GAUGE TO ACTIVATE OVERDRIVE</div>
     </div>
 </div>
 
 <script>
-const Game = {
-    state: "TITLE", canvas: null, ctx: null, width: 450, height: 600,
-    lastTime: 0, score: 0, life: 3, wave: 1, combo: 0, shake: 0, spGauge: 0,
-    player: null, enemies: [], eBullets: [], pBullets: [], items: [], obstacles: [], 
-    particles: [], stars: [], boss: null, ufo: null, orbs: [],
-    touchId: null, lastTouchX: 0,
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
-    init() {
-        this.canvas = document.getElementById("gameCanvas");
-        this.ctx = this.canvas.getContext("2d");
-        SpriteManager.createCache();
-        for(let i=0; i<60; i++) this.stars.push({ x: Math.random()*450, y: Math.random()*600, s: Math.random()*2, v: Math.random()*40+20 });
-        this.bindEvents();
-    },
+// --- スプライト（既存のものを使用） ---
+const sprites = {
+    top: [[0,0,0,1,1,0,0,0],[0,0,1,1,1,1,0,0],[0,1,1,1,1,1,1,0],[1,1,0,1,1,0,1,1],[1,1,1,1,1,1,1,1],[0,0,1,0,0,1,0,0],[0,1,0,1,1,0,1,0],[1,0,1,0,0,1,0,1]],
+    mid: [[0,0,1,0,0,1,0,0],[1,0,0,1,1,0,0,1],[1,0,1,1,1,1,0,1],[1,1,1,0,0,1,1,1],[0,1,1,1,1,1,1,0],[0,0,1,1,1,1,0,0],[0,1,0,0,0,0,1,0],[1,0,0,0,0,0,0,1]],
+    bot: [[0,0,0,1,1,0,0,0],[0,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1],[1,1,0,1,1,0,1,1],[1,1,1,1,1,1,1,1],[0,0,1,1,1,1,0,0],[0,1,1,0,0,1,1,0],[1,1,0,0,0,0,1,1]],
+    boss: [[0,0,0,0,1,1,1,1,1,1,0,0,0,0],[0,0,1,1,1,1,1,1,1,1,1,1,0,0],[0,1,1,1,1,1,1,1,1,1,1,1,1,0],[1,1,0,0,1,1,0,0,1,1,0,0,1,1],[1,1,0,0,1,1,0,0,1,1,0,0,1,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1],[0,0,1,1,0,0,1,1,0,0,1,1,0,0],[0,1,1,0,0,1,1,1,1,0,0,1,1,0]],
+    ufo: [[0,0,0,1,1,1,1,0,0,0],[0,1,1,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1,1,1],[1,1,0,1,1,1,1,0,1,1],[0,0,1,1,0,0,1,1,0,0]]
+};
 
-    bindEvents() {
-        const handleStart = e => {
-            if (this.state !== "PLAY") return;
-            const touch = e.changedTouches[0];
-            this.touchId = touch.identifier;
-            this.lastTouchX = touch.clientX;
-        };
-        const handleMove = e => {
-            if (this.state !== "PLAY" || this.touchId === null) return;
-            for (let t of e.changedTouches) {
-                if (t.identifier === this.touchId) {
-                    const dx = (t.clientX - this.lastTouchX) * 1.4;
-                    this.player.x = Math.max(0, Math.min(this.width - this.player.w, this.player.x + dx));
-                    this.lastTouchX = t.clientX;
-                }
+// --- ゲーム状態管理 ---
+let gameState = "TITLE", score = 0, life = 3, wave = 1, lastTime = 0;
+let enemies = [], enemyBullets = [], items = [], barriers = [], particles = [], ufo = null, boss = null, stars = [];
+let enemyDir = 1, enemyTimer = 0, enemyMoveInterval = 600, shake = 0, comboCount = 0;
+let spGauge = 0; // 0 to 100
+
+const player = { 
+    x: 180, y: 440, w: 30, h: 18, bullets: [], lastShot: 0, 
+    moveSens: 1.8, shotInterval: 350, bulletSpeed: 650, 
+    hasShield: false, overdrive: 0 
+};
+
+// パーティクル生成関数
+function createExplosion(x, y, color, count=8) {
+    for(let i=0; i<count; i++) {
+        particles.push({
+            x: x, y: y,
+            vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10,
+            life: 1.0, color: color, size: Math.random()*3+1
+        });
+    }
+}
+
+function initStars() {
+    stars = [];
+    for(let i=0; i<40; i++) stars.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*2+0.5 });
+}
+
+function initWave() {
+    enemies = []; enemyBullets = []; items = []; boss = null;
+    document.getElementById("boss-hp-container").style.display = "none";
+    document.getElementById("wave").innerText = wave;
+    
+    if (wave % 5 === 0) {
+        boss = { x: 150, y: 50, w: 112, h: 64, hp: 50 + wave * 10, maxHp: 50 + wave * 10, dir: 1 };
+        document.getElementById("boss-hp-container").style.display = "block";
+    } else {
+        const rows = Math.min(7, 4 + Math.floor(wave/2));
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < 8; c++) {
+                enemies.push({ 
+                    x: c * 40 + 40, y: r * 30 + 60, w: 22, h: 22, 
+                    type: r==0?'top':(r<3?'mid':'bot'), 
+                    pts: (5-r)*10,
+                    phase: Math.random() * Math.PI * 2 // 個別の動き用
+                });
             }
-            e.preventDefault();
-        };
-        this.canvas.addEventListener("touchstart", handleStart, {passive:false});
-        this.canvas.addEventListener("touchmove", handleMove, {passive:false});
-        window.addEventListener("touchend", e => { for(let t of e.changedTouches) if(t.identifier===this.touchId) this.touchId=null; });
-    },
+        }
+    }
+    enemyMoveInterval = Math.max(100, 500 - (wave * 30));
+}
 
-    start() {
-        document.getElementById("start-screen").style.display = "none";
-        this.state = "PLAY";
-        this.score = 0; this.life = 3; this.wave = 1; this.spGauge = 0;
-        this.player = { x: 210, y: 530, w: 32, h: 20, lastShot: 0, shotInterval: 300, overdrive: 0, shield: false };
-        this.initWave();
-        this.lastTime = performance.now();
-        requestAnimationFrame(t => this.loop(t));
-    },
+// タッチ操作
+let lastTouchX = null;
+window.addEventListener("touchstart", e => { lastTouchX = e.touches[0].clientX; }, {passive: false});
+window.addEventListener("touchmove", e => {
+    if (gameState !== "PLAY") return;
+    const rect = canvas.getBoundingClientRect();
+    const scale = canvas.width / rect.width;
+    const dx = (e.touches[0].clientX - lastTouchX) * scale * player.moveSens;
+    player.x = Math.max(0, Math.min(canvas.width - player.w, player.x + dx));
+    lastTouchX = e.touches[0].clientX;
+    e.preventDefault();
+}, {passive: false});
 
-    initWave() {
-        this.enemies = []; this.eBullets = []; this.pBullets = []; this.items = []; 
-        this.obstacles = []; this.orbs = []; this.boss = null; this.ufo = null;
-        
-        const ann = document.getElementById("stage-announcement");
-        ann.innerText = `WAVE ${this.wave}`;
-        ann.style.opacity = 1;
-        setTimeout(() => ann.style.opacity = 0, 1500);
+function startGame() {
+    document.getElementById("start-screen").style.display = "none";
+    gameState = "PLAY";
+    score = 0; life = 3; wave = 1; spGauge = 0;
+    initStars(); initWave();
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+}
 
-        if (this.wave % 3 === 0) {
-            this.boss = { x: 155, y: 60, w: 140, h: 80, hp: 200 + this.wave*50, maxHp: 200 + this.wave*50, dir: 1 };
-            document.getElementById("boss-hp-container").style.display = "block";
+function update(dt, now) {
+    if (shake > 0) shake -= dt * 40;
+
+    // スペシャルゲージの更新
+    document.getElementById("sp-gauge-fill").style.width = spGauge + "%";
+    if (player.overdrive > 0) {
+        player.overdrive -= dt;
+        spGauge = (player.overdrive / 5) * 100;
+        if (player.overdrive <= 0) {
+            player.shotInterval = 350;
+            player.bulletSpeed = 650;
+        }
+    }
+
+    // 星の背景
+    stars.forEach(s => {
+        s.y += s.s * 1.5;
+        if (s.y > canvas.height) { s.y = 0; s.x = Math.random() * canvas.width; }
+    });
+
+    // パーティクルの更新
+    for(let i=particles.length-1; i>=0; i--) {
+        let p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.life -= dt * 2;
+        if(p.life <= 0) particles.splice(i, 1);
+    }
+
+    // プレイヤーの攻撃
+    let currentInterval = (player.overdrive > 0) ? 100 : player.shotInterval;
+    if (now - player.lastShot > currentInterval) {
+        if (player.overdrive > 0) {
+            // オーバードライブ中は3WAY
+            for(let i=-1; i<=1; i++) {
+                player.bullets.push({ x: player.x+player.w/2-2, y: player.y, w: 4, h: 15, vx: i*2, color: "#0af" });
+            }
         } else {
-            document.getElementById("boss-hp-container").style.display = "none";
-            const rows = Math.min(6, 3 + Math.floor(this.wave/2));
-            for (let r=0; r<rows; r++) {
-                for (let c=0; c<9; c++) {
-                    this.enemies.push({ 
-                        x: c*42+45, y: r*35+80, w: 24, h: 24, 
-                        type: r===0?'top':(r<3?'mid':'bot'), pts: (6-r)*10,
-                        state: 'NORMAL', timer: 0 
-                    });
+            player.bullets.push({ x: player.x+player.w/2-2, y: player.y, w: 4, h: 12, vx: 0, color: "#fff" });
+        }
+        player.lastShot = now;
+    }
+
+    // 弾の移動
+    for (let i = player.bullets.length - 1; i >= 0; i--) {
+        let b = player.bullets[i];
+        b.y -= player.bulletSpeed * dt;
+        b.x += b.vx || 0;
+        if (b.y < 0) { player.bullets.splice(i, 1); comboCount = 0; continue; }
+
+        // ボス当たり判定
+        if (boss && b.x < boss.x + boss.w && b.x + b.w > boss.x && b.y < boss.y + boss.h && b.y + b.h > boss.y) {
+            player.bullets.splice(i, 1);
+            boss.hp--;
+            createExplosion(b.x, b.y, "#f00", 3);
+            if (boss.hp <= 0) {
+                createExplosion(boss.x + boss.w/2, boss.y + boss.h/2, "#f00", 30);
+                score += 2000; wave++; shake = 40; initWave();
+            }
+            document.getElementById("boss-hp-bar").style.width = (boss.hp/boss.maxHp)*100 + "%";
+            continue;
+        }
+
+        // 敵当たり判定
+        for (let j = enemies.length - 1; j >= 0; j--) {
+            let e = enemies[j];
+            if (b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
+                createExplosion(e.x+e.w/2, e.y+e.h/2, "#0af", 10);
+                player.bullets.splice(i, 1);
+                enemies.splice(j, 1);
+                comboCount++;
+                let pts = Math.floor(e.pts * (1 + comboCount * 0.1));
+                score += pts;
+                if (player.overdrive <= 0) {
+                    spGauge = Math.min(100, spGauge + 2);
+                    if (spGauge >= 100) { player.overdrive = 5.0; shake = 20; }
                 }
-            }
-            // オーブの再実装
-            this.orbs.push({ x: 100 + Math.random()*250, y: 350, w: 28, h: 28, hp: 3, dir: 1 });
-        }
-        
-        if (this.wave > 1) {
-            for(let i=0; i<Math.min(3, this.wave); i++) 
-                this.obstacles.push({ x: Math.random()*350+50, y: Math.random()*150+150, rot: 0, size: 30 });
-        }
-    },
-
-    spawnExp(x, y, color, count=12) {
-        for(let i=0; i<count; i++) 
-            this.particles.push({ x, y, vx:(Math.random()-0.5)*12, vy:(Math.random()-0.5)*12, life:1.0, color, size:Math.random()*3+1 });
-    },
-
-    update(dt) {
-        if (this.state !== "PLAY") return;
-        const now = performance.now();
-        if (this.shake > 0) this.shake -= dt * 60;
-
-        // 背景
-        this.stars.forEach(s => { s.y += s.v * dt; if (s.y > this.height) s.y = 0; });
-
-        // 自機攻撃
-        let interval = (this.player.overdrive > 0) ? 120 : this.player.shotInterval;
-        if (now - this.player.lastShot > interval) {
-            if (this.player.overdrive > 0) {
-                [-4, 0, 4].forEach(vx => this.pBullets.push({ x:this.player.x+14, y:this.player.y, vx, vy:-850, sp:true }));
-            } else {
-                this.pBullets.push({ x:this.player.x+14, y:this.player.y, vx:0, vy:-700, sp:false });
-            }
-            this.player.lastShot = now;
-        }
-        if (this.player.overdrive > 0) {
-            this.player.overdrive -= dt;
-            this.spGauge = (this.player.overdrive / 5) * 100;
-        }
-
-        // UFO出現ロジック
-        if (!this.boss && !this.ufo && Math.random() < 0.003) this.ufo = { x:-50, y:40, w:46, h:20, v:150 };
-        if (this.ufo) {
-            this.ufo.x += this.ufo.v * dt;
-            if (this.ufo.x > this.width + 50) this.ufo = null;
-        }
-
-        // 自機弾メインループ（逆順）
-        for (let i = this.pBullets.length-1; i>=0; i--) {
-            let b = this.pBullets[i];
-            b.y += b.vy * dt; b.x += b.vx * dt;
-            if (b.y < -20) { this.pBullets.splice(i, 1); this.combo = 0; continue; }
-
-            let hit = false;
-            // 敵との判定
-            for (let j = this.enemies.length-1; j>=0; j--) {
-                let e = this.enemies[j];
-                if (b.x > e.x && b.x < e.x+e.w && b.y > e.y && b.y < e.y+e.h) {
-                    this.spawnExp(e.x+12, e.y+12, "#0af");
-                    this.enemies.splice(j, 1); hit = true; this.combo++;
-                    this.score += Math.floor(e.pts * (1+this.combo*0.1));
-                    if (this.player.overdrive <= 0) {
-                        this.spGauge = Math.min(100, this.spGauge + 4);
-                        if (this.spGauge >= 100) { this.player.overdrive=5; this.shake=20; }
-                    }
-                    break;
-                }
-            }
-            if (hit) { this.pBullets.splice(i,1); continue; }
-
-            // オーブとの判定
-            for (let j = this.orbs.length-1; j>=0; j--) {
-                let o = this.orbs[j];
-                if (b.x > o.x && b.x < o.x+o.w && b.y > o.y && b.y < o.y+o.h) {
-                    o.hp--; this.pBullets.splice(i,1); hit=true;
-                    if(o.hp <= 0) {
-                        this.spawnExp(o.x+14, o.y+14, "#fff", 20);
-                        this.enemies.forEach(en => {
-                            if(Math.hypot(en.x-o.x, en.y-o.y) < 120) en.state = 'DEAD';
-                        });
-                        this.orbs.splice(j, 1); this.shake = 30; this.score += 300;
-                    }
-                    break;
-                }
-            }
-            if (hit) continue;
-
-            // 機雷との判定
-            for (let o of this.obstacles) {
-                if (Math.hypot(b.x-o.x, b.y-o.y) < 20) { this.spawnExp(b.x, b.y, "#555", 5); this.pBullets.splice(i,1); hit=true; break; }
-            }
-            if (hit) continue;
-
-            // ボス/UFO判定
-            if (this.boss && b.x > this.boss.x && b.x < this.boss.x+this.boss.w && b.y > this.boss.y && b.y < this.boss.y+this.boss.h) {
-                this.boss.hp--; this.pBullets.splice(i,1); hit=true;
-                this.spawnExp(b.x, b.y, "#f33", 4);
-                document.getElementById("boss-hp-bar").style.width = (this.boss.hp/this.boss.maxHp*100)+"%";
-                if (this.boss.hp <= 0) { this.spawnExp(this.boss.x+70, this.boss.y+40, "#fff", 60); this.score+=5000; this.wave++; this.initWave(); }
-            }
-            if (!hit && this.ufo && b.x > this.ufo.x && b.x < this.ufo.x+this.ufo.w && b.y > this.ufo.y && b.y < this.ufo.y+this.ufo.h) {
-                this.spawnExp(this.ufo.x+23, this.ufo.y+10, "#f0f", 20);
-                this.items.push({ x:this.ufo.x+20, y:this.ufo.y, type: Math.random()<0.5?'S':'G' });
-                this.ufo = null; this.pBullets.splice(i,1);
+                break;
             }
         }
+    }
 
-        // 敵・オーブの移動
-        if (this.boss) {
-            this.boss.x += 130 * this.boss.dir * dt;
-            if (this.boss.x < 0 || this.boss.x > this.width - this.boss.w) this.boss.dir *= -1;
-            if (Math.random() < 0.06) this.eBullets.push({ x:this.boss.x + Math.random()*this.boss.w, y:this.boss.y+this.boss.h, v:420 });
-        } else {
-            this.orbs.forEach(o => { o.x += 50*o.dir*dt; if(o.x<20||o.x>this.width-40) o.dir*=-1; });
-            this.enemies.forEach(e => {
-                if (e.state === 'NORMAL') {
-                    e.x += 25 * (Math.sin(now/1000)*2) * dt; // 揺らぎ移動
-                    if (e.y > 510) this.gameOver();
-                } else if (e.state === 'WARN') {
-                    e.timer += dt; if (e.timer > 0.7) { e.state = 'DIVE'; e.v = 280 + this.wave*20; }
-                } else if (e.state === 'DIVE') {
-                    e.y += e.v * dt; if (e.y > this.height) e.state = 'DEAD';
-                }
+    // 敵の挙動
+    if (boss) {
+        boss.x += 150 * boss.dir * dt;
+        if (boss.x > canvas.width - boss.w || boss.x < 0) boss.dir *= -1;
+        if (Math.random() < 0.08) enemyBullets.push({ x: boss.x + Math.random()*boss.w, y: boss.y + boss.h, w: 6, h: 16, isBoss: true });
+    } else {
+        enemyTimer += dt * 1000;
+        if (enemyTimer > enemyMoveInterval) {
+            let hitEdge = false;
+            enemies.forEach(e => { 
+                e.x += 15 * enemyDir; 
+                if (e.x > canvas.width - 25 || e.x < 5) hitEdge = true; 
             });
-            // 突撃AI
-            if (Math.random() < 0.006 + this.wave*0.001) {
-                let cans = this.enemies.filter(e => e.state === 'NORMAL');
-                if (cans.length > 0) { let t = cans[Math.floor(Math.random()*cans.length)]; t.state='WARN'; t.timer=0; }
+            if (hitEdge) { 
+                enemyDir *= -1; 
+                enemies.forEach(e => e.y += 15); 
             }
-            // 射撃AI
-            if (Math.random() < 0.025 + this.wave*0.005 && this.enemies.length > 0) {
-                let s = this.enemies[Math.floor(Math.random()*this.enemies.length)];
-                if(s.state !== 'DEAD') this.eBullets.push({ x:s.x+10, y:s.y+20, v:320 });
-            }
+            enemyTimer = 0;
+            if (enemies.some(e => e.y > 400)) endGame();
         }
-
-        // 死んだ敵を掃除
-        this.enemies = this.enemies.filter(e => e.state !== 'DEAD');
-
-        // 敵弾・アイテム・機雷接触
-        for (let i = this.eBullets.length-1; i>=0; i--) {
-            let eb = this.eBullets[i]; eb.y += eb.v * dt;
-            if (eb.y > this.height) { this.eBullets.splice(i,1); continue; }
-            if (eb.x > this.player.x && eb.x < this.player.x+this.player.w && eb.y > this.player.y && eb.y < this.player.y+this.player.h) {
-                this.eBullets.splice(i,1); this.damagePlayer();
-            }
-        }
-        this.items.forEach((it, i) => {
-            it.y += 150*dt;
-            if (it.x > this.player.x && it.x < this.player.x+this.player.w && it.y > this.player.y && it.y < this.player.y+this.player.h) {
-                if (it.type==='S') this.player.shield=true; else { this.player.overdrive=5; this.spGauge=100; }
-                this.items.splice(i,1);
-            }
-        });
-        this.obstacles.forEach(o => { if(Math.hypot(this.player.x+16-o.x, this.player.y+10-o.y) < 25) this.damagePlayer(); });
-
-        for (let i = this.particles.length-1; i>=0; i--) {
-            let p = this.particles[i]; p.x+=p.vx; p.y+=p.vy; p.life -= dt*2.5;
-            if (p.life<=0) this.particles.splice(i,1);
-        }
-
-        if (!this.boss && this.enemies.length === 0) { this.wave++; this.initWave(); }
-        this.updateUI();
-    },
-
-    damagePlayer() {
-        if (this.player.shield) { this.player.shield = false; this.shake = 15; }
-        else { this.life--; this.shake = 35; if (this.life <= 0) this.gameOver(); }
-    },
-
-    updateUI() {
-        document.getElementById("score").innerText = Math.floor(this.score);
-        document.getElementById("life").innerText = this.life;
-        document.getElementById("combo").innerText = "x" + (1 + this.combo*0.1).toFixed(1);
-        document.getElementById("sp-gauge-fill").style.width = this.spGauge + "%";
-    },
-
-    draw() {
-        const ctx = this.ctx; ctx.save();
-        if (this.shake > 0) ctx.translate(Math.random()*this.shake-this.shake/2, Math.random()*this.shake-this.shake/2);
-        ctx.fillStyle = "#000"; ctx.fillRect(0, 0, this.width, this.height);
-        
-        ctx.fillStyle = "#fff"; this.stars.forEach(s => ctx.fillRect(s.x, s.y, s.s, s.s));
-
-        if (this.boss) ctx.drawImage(SpriteManager.cache.boss, this.boss.x, this.boss.y);
-        this.enemies.forEach(e => {
-            if (e.state === 'WARN') {
-                ctx.strokeStyle = "red"; ctx.setLineDash([4, 4]); ctx.strokeRect(e.x, e.y, e.w, 450); ctx.setLineDash([]);
-            }
-            ctx.drawImage(SpriteManager.cache[e.type], e.x, e.y);
-        });
-        this.orbs.forEach(o => ctx.drawImage(SpriteManager.cache.orb, o.x, o.y));
-        this.obstacles.forEach(o => {
-            ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(now() / 500);
-            ctx.drawImage(SpriteManager.cache.mine, -15, -15); ctx.restore();
-        });
-
-        this.pBullets.forEach(b => {
-            ctx.fillStyle = b.sp ? "#0af" : "#fff"; if(b.sp) { ctx.shadowBlur=10; ctx.shadowColor="#0af"; }
-            ctx.fillRect(b.x, b.y, 4, 14); ctx.shadowBlur=0;
-        });
-        ctx.fillStyle = "red"; this.eBullets.forEach(eb => ctx.fillRect(eb.x, eb.y, 3, 10));
-        
-        this.items.forEach(it => {
-            ctx.fillStyle = it.type==='S'?"#0f0":"#fff"; ctx.beginPath(); ctx.arc(it.x, it.y, 8, 0, 7); ctx.fill();
-        });
-
-        this.particles.forEach(p => { ctx.globalAlpha = p.life; ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size); });
-        ctx.globalAlpha = 1;
-
-        if (this.player.shield) { ctx.strokeStyle="#0f0"; ctx.beginPath(); ctx.arc(this.player.x+16, this.player.y+10, 28, 0, 7); ctx.stroke(); }
-        ctx.drawImage(SpriteManager.cache.player, this.player.x, this.player.y);
-        ctx.restore();
-    },
-
-    loop(timestamp) {
-        if (this.state !== "PLAY") return;
-        let dt = (timestamp - this.lastTime) / 1000;
-        if (dt > 0.1) dt = 0.1;
-        this.lastTime = timestamp;
-        this.update(dt); this.draw();
-        requestAnimationFrame(t => this.loop(t));
-    },
-
-    gameOver() {
-        this.state = "RESULT"; document.getElementById("result-screen").style.display = "flex";
-        document.getElementById("final-stats").innerHTML = `FINAL SCORE: ${Math.floor(this.score)}<br>WAVE: ${this.wave}`;
-    }
-};
-
-const SpriteManager = {
-    cache: {},
-    data: {
-        player: [[0,0,1,1,0,0],[0,1,1,1,1,0],[1,1,1,1,1,1],[1,1,1,1,1,1]],
-        top: [[0,0,1,1,0,0],[0,1,1,1,1,0],[1,0,1,1,0,1],[1,1,1,1,1,1],[0,1,0,0,1,0]],
-        mid: [[1,0,1,1,0,1],[1,1,1,1,1,1],[0,1,1,1,1,0],[0,0,1,1,0,0]],
-        bot: [[0,1,1,1,1,0],[1,1,0,0,1,1],[1,1,1,1,1,1],[0,1,0,0,1,0]],
-        boss: [[0,0,1,1,1,1,1,1,0,0],[0,1,1,1,1,1,1,1,1,0],[1,1,0,0,1,1,0,0,1,1],[1,1,1,1,1,1,1,1,1,1],[0,0,1,0,0,0,0,1,0,0]],
-        mine: [[0,1,0],[1,1,1],[0,1,0]],
-        orb: [[0,1,1,0],[1,1,1,1],[1,1,1,1],[0,1,1,0]]
-    },
-    createCache() {
-        const colors = { player: "#0af", top: "#f0f", mid: "#0cf", bot: "#fff", boss: "#f33", mine: "#666", orb: "#0f0" };
-        for (let key in this.data) {
-            const pixel = key==='boss'?14:key==='orb'?7:4;
-            const d = this.data[key]; const c = document.createElement("canvas");
-            c.width = d[0].length*pixel; c.height = d.length*pixel;
-            const ctx = c.getContext("2d"); ctx.fillStyle = colors[key];
-            d.forEach((row, r) => row.forEach((p, col) => { if(p) ctx.fillRect(col*pixel, r*pixel, pixel, pixel); }));
-            this.cache[key] = c;
+        if (Math.random() < 0.02 + (wave*0.005) && enemies.length > 0) {
+            const s = enemies[Math.floor(Math.random() * enemies.length)];
+            enemyBullets.push({ x: s.x + s.w/2, y: s.y + s.h, w: 3, h: 10 });
         }
     }
-};
 
-function now() { return performance.now(); }
-window.onload = () => Game.init();
+    // 敵の弾
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        let eb = enemyBullets[i];
+        eb.y += (eb.isBoss ? 350 : 280) * dt;
+        if (eb.y > canvas.height) { enemyBullets.splice(i, 1); continue; }
+
+        if (eb.x < player.x+player.w && eb.x+eb.w > player.x && eb.y < player.y+player.h && eb.y+eb.h > player.y) {
+            enemyBullets.splice(i, 1);
+            life--;
+            shake = 30;
+            document.getElementById("life").innerText = life;
+            if (life <= 0) endGame();
+        }
+    }
+
+    document.getElementById("score").innerText = score;
+    document.getElementById("combo").innerText = "x" + (1 + comboCount * 0.1).toFixed(1);
+    if (!boss && enemies.length === 0) { wave++; initWave(); }
+}
+
+function draw() {
+    ctx.save();
+    if (shake > 0) ctx.translate(Math.random()*shake - shake/2, Math.random()*shake - shake/2);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 背景の星
+    ctx.fillStyle = "#fff";
+    stars.forEach(s => ctx.fillRect(s.x, s.y, s.s, s.s));
+
+    // パーティクル
+    particles.forEach(p => {
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+    });
+    ctx.globalAlpha = 1.0;
+
+    // プレイヤー（オーバードライブ中は光る）
+    ctx.fillStyle = (player.overdrive > 0 && Date.now()%100<50) ? "#fff" : "#0af";
+    ctx.fillRect(player.x, player.y + 6, player.w, 12);
+    ctx.fillRect(player.x + 11, player.y, 8, 6);
+    if (player.overdrive > 0) {
+        ctx.strokeStyle = "#0af"; ctx.lineWidth = 2;
+        ctx.strokeRect(player.x-2, player.y-2, player.w+4, player.h+4);
+    }
+
+    // 敵
+    if (boss) drawPixelSprite(sprites.boss, boss.x, boss.y, 8, "#f33");
+    else enemies.forEach(e => {
+        const color = e.type === 'top' ? "#f0f" : (e.type === 'mid' ? "#0cf" : "#fff");
+        drawPixelSprite(sprites[e.type], e.x, e.y, 2.8, color);
+    });
+
+    // 弾
+    player.bullets.forEach(b => {
+        ctx.fillStyle = b.color;
+        ctx.shadowBlur = (player.overdrive > 0) ? 10 : 0;
+        ctx.shadowColor = b.color;
+        ctx.fillRect(b.x, b.y, b.w, b.h);
+    });
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#f33"; enemyBullets.forEach(eb => ctx.fillRect(eb.x, eb.y, eb.w, eb.h));
+
+    ctx.restore();
+}
+
+function drawPixelSprite(sprite, x, y, size, color) {
+    ctx.fillStyle = color;
+    sprite.forEach((row, ri) => row.forEach((p, ci) => { if(p) ctx.fillRect(x + ci*size, y + ri*size, size, size); }));
+}
+
+function gameLoop(timestamp) {
+    if (gameState !== "PLAY") return;
+    let dt = (timestamp - lastTime) / 1000;
+    if (dt > 0.1) dt = 0.1;
+    lastTime = timestamp;
+    update(dt, timestamp);
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+    gameState = "RESULT";
+    document.getElementById("result-screen").style.display = "flex";
+    document.getElementById("final-stats").innerHTML = `SCORE: ${score}<br>WAVE: ${wave}`;
+}
 </script>
 </body>
-</html>
 </html>
