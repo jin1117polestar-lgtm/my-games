@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SKY RAIDERS: 1945 STYLE</title>
+    <style>
+        html, body { background: #000; color: #fff; text-align: center; font-family: 'Courier New', sans-serif; overflow: hidden; touch-action: none; margin: 0; width: 100%; height: 100%; -webkit-user-select: none; }
+        #game-container { display: flex; flex-direction: column; height: 100vh; position: relative; }
+        .ui-top { height: 74px; display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center; background: rgba(10, 10, 20, 0.9); color: #0f0; font-size: 10px; border-bottom: 2px solid #0af; padding-top: env(safe-area-inset-top); z-index: 10; }
+        #screen-area { position: relative; flex-grow: 1; width: 100%; background: #000; overflow: hidden; }
+        canvas { display: block; margin: 0 auto; width: 100%; height: 100%; object-fit: contain; }
+        #touch-area { height: 110px; background: #050505; display: flex; align-items: center; justify-content: center; gap: 16px; border-top: 1px solid #333; padding-bottom: env(safe-area-inset-bottom); position: relative; }
+
+        #sp-gauge-container { position: absolute; bottom: 8px; left: 8%; width: 84%; height: 5px; background: #222; border-radius: 3px; overflow: hidden; }
+        #sp-gauge-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #0af, #fff); transition: width 0.1s; box-shadow: 0 0 8px #0af; }
+
+        #wave-banner { position: absolute; top: 38%; left: 0; width: 100%; text-align: center; color: #0af; font-size: 24px; font-weight: bold; text-shadow: 0 0 15px #0af; opacity: 0; pointer-events: none; z-index: 20; letter-spacing: 4px; }
+        #boss-alert { position: absolute; top: 44%; left: 0; width: 100%; text-align: center; color: #f33; font-size: 26px; font-weight: bold; text-shadow: 0 0 15px #f33; opacity: 0; pointer-events: none; z-index: 20; letter-spacing: 6px; }
+
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.88); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; overflow-y: auto; }
+        button { padding: 14px 36px; font-size: 18px; background: #0af; color: #fff; border: none; font-weight: bold; border-radius: 5px; cursor: pointer; box-shadow: 0 0 15px #0af; margin-top: 8px; }
+        button.secondary { background: #333; box-shadow: none; font-size: 13px; padding: 9px 22px; }
+        .stat-val { color: #fff; font-size: 15px; font-weight: bold; }
+        #pause-btn { position: absolute; top: 8px; right: 10px; background: rgba(0,0,0,0.4); border: 1px solid #0af; color: #0af; font-size: 13px; padding: 6px 10px; border-radius: 4px; box-shadow: none; z-index: 15; }
+        #buff-status { font-weight:bold; height:16px; color:#0af; font-size:12px; }
+
+        .ship-picker { display: flex; gap: 18px; margin: 14px 0 20px; }
+        .ship-card { border: 2px solid #333; background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px; width: 150px; cursor: pointer; }
+        .ship-card.selected { border-color: #0af; box-shadow: 0 0 15px #0af; }
+        .ship-card canvas { image-rendering: pixelated; margin-bottom: 6px; }
+        .ship-card h3 { margin: 4px 0; font-size: 13px; color: #0af; }
+        .stat-bar-row { display: flex; align-items: center; gap: 4px; font-size: 9px; color: #aaa; margin: 2px 0; text-align: left; }
+        .stat-bar { width: 60px; height: 5px; background: #222; border-radius: 2px; overflow: hidden; }
+        .stat-bar-fill { height: 100%; background: #0af; }
+        #bomb-btn { background: #f33; box-shadow: 0 0 12px #f33; padding: 14px 26px; font-size: 14px; border-radius: 50%; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; margin: 0; }
+        #bomb-btn:disabled { background: #333; box-shadow: none; opacity: 0.5; }
+        #bomb-count { position: absolute; top: -6px; right: -6px; background: #fff; color: #000; border-radius: 50%; width: 18px; height: 18px; font-size: 11px; display: flex; align-items: center; justify-content: center; }
+        #bomb-wrap { position: relative; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="ui-top">
+        <div>SCORE <br><span id="score" class="stat-val">0</span></div>
+        <div>HIGH <br><span id="highscore" class="stat-val" style="color:#fa0">0</span></div>
+        <div>LIFE <br><span id="life" class="stat-val">3</span></div>
+        <div>STAGE <br><span id="stage" class="stat-val">1</span></div>
+        <div>WEAPON <br><span id="weaponlv" class="stat-val" style="color:#0af">Lv1</span></div>
+    </div>
+
+    <div id="screen-area">
+        <div id="boss-hp-container" style="position:absolute; top:10px; left:8%; width:84%; height:8px; border:1px solid #f00; display:none;">
+            <div id="boss-hp-bar" style="width:100%; height:100%; background:#f00;"></div>
+        </div>
+
+        <canvas id="gameCanvas" width="400" height="500"></canvas>
+
+        <div id="wave-banner"></div>
+        <div id="boss-alert">WARNING</div>
+
+        <div id="sp-gauge-container"><div id="sp-gauge-fill"></div></div>
+
+        <button id="pause-btn" onclick="togglePause()">II</button>
+
+        <div id="start-screen" class="overlay">
+            <h1 style="color:#0af; margin:0; font-size: 28px; text-shadow: 0 0 20px #0af;">SKY RAIDERS</h1>
+            <p style="color:#fff; font-size:13px; margin-bottom: 4px;">1945 STYLE AIR COMBAT</p>
+            <p style="color:#888; font-size:11px; margin-bottom: 4px;">HIGH SCORE: <span id="start-highscore">0</span></p>
+
+            <div class="ship-picker" id="ship-picker"></div>
+
+            <button onclick="startGame()">SCRAMBLE!</button>
+            <p style="color:#666; font-size:10px; margin-top:14px; line-height:1.6;">ドラッグで機体移動・自動射撃<br>アイテムで武器強化・ボムストック<br>ボムボタンで画面全体を薙ぎ払う</p>
+        </div>
+
+        <div id="pause-screen" class="overlay" style="display:none">
+            <h2 style="color:#0af;">PAUSE</h2>
+            <button onclick="togglePause()">RESUME</button>
+            <button class="secondary" onclick="location.reload()">QUIT</button>
+        </div>
+
+        <div id="result-screen" class="overlay" style="display:none">
+            <h2 id="result-msg" style="color:#0af;">MISSION COMPLETE</h2>
+            <div id="final-stats" style="margin-bottom:20px; line-height: 1.8;"></div>
+            <button onclick="location.reload()">RETRY</button>
+        </div>
+    </div>
+
+    <div id="touch-area">
+        <div id="bomb-wrap">
+            <button id="bomb-btn" onclick="useBomb()">BOMB<span id="bomb-count">3</span></button>
+        </div>
+        <div style="text-align:left;">
+            <div id="buff-status"></div>
+            <div style="color:#555; font-size:9px; margin-top:3px;">DRAG TO MOVE / AUTO FIRE</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+
+// ============ ドット絵スプライト定義 ============
+// half配列は「中心→翼端」方向の1文字コード列。mirrorRowで左右対称の1行分の文字列に変換する。
+function mirrorRow(half) { return half.split('').reverse().join('') + half; }
+function buildSprite(halfRows, palette) {
+    return { rows: halfRows.map(mirrorRow), palette, w: halfRows[0].length * 2, h: halfRows.length };
+}
+function drawSprite(spr, x, y, scale, flashWhite) {
+    for (let r = 0; r < spr.rows.length; r++) {
+        const row = spr.rows[r];
+        for (let c = 0; c < row.length; c++) {
+            const ch = row[c];
+            if (ch === '.') continue;
+            ctx.fillStyle = flashWhite ? "#fff" : spr.palette[ch];
+            ctx.fillRect(x + c*scale, y + r*scale, scale, scale);
+        }
+    }
+}
+
+const SHIPS = [
+    {
+        id: 0, name: "ライトニング", desc: "バランス型",
+        speed: 1.8, power: 2, bombPower: 2, shotInterval: 260, bulletSpeed: 720,
+        sprite: buildSprite([
+            "p.........",
+            "bb........",
+            "bhb.......",
+            "bhb.......",
+            "bgcb......",
+            "bgcb......",
+            "bgcb......",
+            "bhbs......",
+            "bhbws.....",
+            "bhbwwus...",
+            "bhbwwwwus.",
+            "sgbwwwwwum",
+            "bhbwwwwus.",
+            "bhbwwus...",
+            "bhbws.....",
+            "bhbs......",
+            "b.r.......",
+            "b........."
+        ], { b:"#2b5fd6", h:"#6ea8ff", s:"#123a8a", g:"#0a1a33", c:"#a8ecff", w:"#b9c6d8", u:"#e6eefc", r:"#ff3b3b", m:"#ffe14d", p:"#333333" })
+    },
+    {
+        id: 1, name: "コメット", desc: "高速連射型",
+        speed: 2.6, power: 1, bombPower: 1, shotInterval: 150, bulletSpeed: 780,
+        sprite: buildSprite([
+            "p.........",
+            "bb........",
+            "bhb.......",
+            "bgcb......",
+            "bgcb......",
+            "bhbs......",
+            "bhbws.....",
+            "bhbwwus...",
+            "sgbwwwwum.",
+            "bhbwwus...",
+            "bhbws.....",
+            "bhbs......",
+            "bhbs......",
+            "b.r.......",
+            "b.r.......",
+            "b.........",
+            "b........."
+        ], { b:"#ff5a2b", h:"#ffb27a", s:"#a31f00", g:"#330b00", c:"#fff0b0", w:"#ffd27a", u:"#ffe9c2", r:"#ffe14d", m:"#2b6cff", p:"#333333" })
+    }
+];
+
+const ENEMY_SPRITES = {
+    fighter: buildSprite([
+        "p......","bb.....","bhb....","bgcb...","bhbs...","bhbws..","sgbwwu.","bhbwwus","sgbwwu.","bhbws..","bhbs...","b.r....","b......"
+    ], { b:"#4a5568", h:"#8a9bb5", s:"#1c2430", g:"#0d1218", c:"#a8d8ff", w:"#6b7d99", u:"#c3d3e8", r:"#ff4444", p:"#222222" }),
+    zigzag: buildSprite([
+        "p......","bb.....","bgcb...","bhbs...","bhbws..","sgbwwu.","bhbwwum","sgbwwu.","bhbws..","bhbs...","b.y....","b......"
+    ], { b:"#8a7a3a", h:"#c9b96a", s:"#332c10", g:"#241f0a", c:"#e8ffff", w:"#a99a5a", u:"#e0d6a0", m:"#ffe14d", y:"#ffde59", p:"#222222" }),
+    bomber: buildSprite([
+        "..p......",".bbb.....",".bhb.....","bgcb.....","bgcb.....","bhbs.....","bhbwws...","sgbwwwu..","bhbwwwwus","sgbwwwwu.","bhbwwwus.","bhbwws...","bhbs.....",".b.r....."
+    ], { b:"#445577", h:"#8fa8cc", s:"#101825", g:"#0a0f18", c:"#8cd0ff", w:"#5a6b8a", u:"#b8c8e0", r:"#ff5555", p:"#222222" })
+};
+
+const BOSS_TEMPLATE = [
+    ".....p....",
+    "....bbb...",
+    "...bhhb...",
+    "..bgccb...",
+    "..bgccb...",
+    ".bhbssbh..",
+    ".bhbwwbh..",
+    "bhbwwwwbh.",
+    "sgbwwwwwbh",
+    "bhbwwwwwbt",
+    "sgbwwwwwbh",
+    "bhbwwwwbh.",
+    ".bhbwwbh..",
+    ".bhbssbh..",
+    "..bgccb...",
+    "..bgccb...",
+    "...bhtb...",
+    "...bhb....",
+    "..b.r.b...",
+    "..b...b..."
+];
+const BOSSES = [
+    { name: "海竜改", scale: 1.0, hpMul: 1.0,
+      sprite: buildSprite(BOSS_TEMPLATE, { b:"#2f6e6e", h:"#7fd9d9", s:"#123333", g:"#0a1e1e", c:"#aef2ff", w:"#4a9a9a", t:"#ffe14d", r:"#ff5555", p:"#222222" }) },
+    { name: "陸戦重爆", scale: 1.12, hpMul: 1.35,
+      sprite: buildSprite(BOSS_TEMPLATE, { b:"#5a6b2e", h:"#a8c060", s:"#232a10", g:"#141a08", c:"#e8ffb0", w:"#7a8a3e", t:"#ffe14d", r:"#ff5555", p:"#222222" }) },
+    { name: "要塞戦闘機", scale: 1.28, hpMul: 1.8,
+      sprite: buildSprite(BOSS_TEMPLATE, { b:"#5a1414", h:"#c04040", s:"#220505", g:"#150303", c:"#ffd0d0", w:"#7a2424", t:"#ffe14d", r:"#ffffff", p:"#222222" }) }
+];
+
+// ============ サウンド ============
+let actx = null;
+function ensureAudio() { if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} } }
+function beep(freq, dur, type="square", vol=0.15, slideTo=null) {
+    if (!actx) return;
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, actx.currentTime);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, actx.currentTime + dur);
+    g.gain.setValueAtTime(vol, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(); o.stop(actx.currentTime + dur);
+}
+const sfx = {
+    shot: () => beep(900, 0.05, "square", 0.04, 1300),
+    hit: () => beep(300, 0.07, "square", 0.07, 100),
+    explode: () => beep(140, 0.25, "sawtooth", 0.15, 40),
+    bossHit: () => beep(220, 0.05, "triangle", 0.07, 150),
+    item: () => beep(600, 0.12, "sine", 0.12, 1000),
+    bomb: () => beep(80, 0.6, "sawtooth", 0.22, 700),
+    hurt: () => beep(200, 0.3, "sawtooth", 0.18, 60),
+    stageClear: () => { beep(500,0.1,"sine",0.1,700); setTimeout(()=>beep(700,0.15,"sine",0.1,1000),100); setTimeout(()=>beep(900,0.2,"sine",0.1,1300),220); },
+    gameOver: () => beep(300, 0.8, "sawtooth", 0.15, 50)
+};
+
+// ============ ゲーム状態 ============
+let gameState = "TITLE", score = 0, life = 3, stageNum = 1, lastTime = 0, highScore = 0;
+let selectedShipIdx = 0;
+let enemies = [], enemyBullets = [], items = [], particles = [], boss = null, groundDecor = [];
+let shake = 0, comboCount = 0, comboTimer = 0, spGauge = 0, bombStock = 3, bombFlashT = 0;
+let spawnTimer = 0, stageTimer = 0, stageEnemiesLeft = 0, bossPhase = 1, scrollY = 0;
+
+const player = {
+    x: 180, y: 420, w: 26, h: 28, bullets: [], lastShot: 0,
+    weaponLv: 1, invuln: 0, ship: null
+};
+
+function createExplosion(x, y, color, count=8) {
+    for(let i=0; i<count; i++) {
+        particles.push({ x, y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, life: 1.0, color, size: Math.random()*3+1 });
+    }
+}
+
+// ============ 機体選択画面 ============
+function buildShipPicker() {
+    const wrap = document.getElementById("ship-picker");
+    wrap.innerHTML = "";
+    SHIPS.forEach(ship => {
+        const card = document.createElement("div");
+        card.className = "ship-card" + (ship.id === selectedShipIdx ? " selected" : "");
+        card.onclick = () => { selectedShipIdx = ship.id; buildShipPicker(); };
+        const prevCanvas = document.createElement("canvas");
+        prevCanvas.width = 84; prevCanvas.height = 84;
+        card.appendChild(prevCanvas);
+        const h3 = document.createElement("h3"); h3.innerText = ship.name;
+        card.appendChild(h3);
+        const desc = document.createElement("div"); desc.style.cssText = "font-size:10px;color:#888;margin-bottom:4px;"; desc.innerText = ship.desc;
+        card.appendChild(desc);
+        [["SPEED", ship.speed/2.6], ["POWER", ship.power/2], ["BOMB", ship.bombPower/2]].forEach(([label, ratio]) => {
+            const row = document.createElement("div"); row.className = "stat-bar-row";
+            row.innerHTML = `<span style="width:36px;">${label}</span><div class="stat-bar"><div class="stat-bar-fill" style="width:${Math.round(ratio*100)}%"></div></div>`;
+            card.appendChild(row);
+        });
+        wrap.appendChild(card);
+        const pctx = prevCanvas.getContext("2d");
+        pctx.imageSmoothingEnabled = false;
+        const s = ship.sprite;
+        const scale = Math.min((84-10)/s.w, (84-10)/s.h);
+        const ox = (84 - s.w*scale)/2, oy = (84 - s.h*scale)/2;
+        for (let r=0;r<s.rows.length;r++) for (let c=0;c<s.rows[r].length;c++) {
+            const ch = s.rows[r][c]; if (ch==='.') continue;
+            pctx.fillStyle = s.palette[ch];
+            pctx.fillRect(ox+c*scale, oy+r*scale, scale, scale);
+        }
+    });
+}
+buildShipPicker();
+
+// ============ ステージ背景 ============
+let cloudShadows = [];
+function initGroundDecor(stage) {
+    groundDecor = [];
+    cloudShadows = [];
+    const count = stage === 3 ? 7 : 9;
+    for (let i=0;i<count;i++) {
+        groundDecor.push({
+            x: Math.random()*canvas.width, y: Math.random()*canvas.height*2 - canvas.height,
+            size: 14+Math.random()*20, seed: Math.random(), rot: Math.random()*Math.PI*2, kind: Math.floor(Math.random()*3)
+        });
+    }
+    for (let i=0;i<5;i++) {
+        cloudShadows.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height*2 - canvas.height, rx: 30+Math.random()*40, ry: 14+Math.random()*10 });
+    }
+}
+
+function drawCloudShadows(dt, alpha) {
+    ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+    cloudShadows.forEach(c => {
+        c.y += dt * (30 + stageNum*4);
+        if (c.y > canvas.height + 40) c.y -= canvas.height + 80;
+        ctx.beginPath(); ctx.ellipse(c.x, c.y, c.rx, c.ry, 0, 0, Math.PI*2); ctx.fill();
+    });
+}
+
+function drawBackground(dt) {
+    scrollY += dt * (60 + stageNum*10);
+    const sy = scrollY % 40;
+    const spd = 60 + stageNum*10;
+    if (stageNum === 1) {
+        // 海: 深浅グラデーション + 波紋 + 泡 + 雲影 + 艦影
+        const grad = ctx.createLinearGradient(0,0,0,canvas.height);
+        grad.addColorStop(0,"#0d4a80"); grad.addColorStop(1,"#082a52");
+        ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width,canvas.height);
+        drawCloudShadows(dt, 0.10);
+        for (let y = -40; y < canvas.height+40; y += 40) {
+            ctx.strokeStyle = "rgba(180,220,255,0.22)"; ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let x = 0; x <= canvas.width; x += 8) {
+                const yy = y + sy + Math.sin((x*0.05) + scrollY*0.02)*4;
+                if (x===0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+            }
+            ctx.stroke();
+            // 波頭の泡
+            for (let x = 4; x <= canvas.width; x += 24) {
+                const yy = y + sy + Math.sin((x*0.05) + scrollY*0.02)*4;
+                if (Math.sin(x*0.7+y)>0.6) { ctx.fillStyle="rgba(255,255,255,0.35)"; ctx.fillRect(x, yy-1, 3, 2); }
+            }
+        }
+        groundDecor.forEach(d => {
+            d.y += dt * spd;
+            if (d.y > canvas.height + 40) d.y -= canvas.height + 80;
+            // 航跡(引き波)
+            ctx.fillStyle = "rgba(255,255,255,0.18)";
+            ctx.beginPath(); ctx.moveTo(d.x, d.y - d.size*1.6);
+            ctx.lineTo(d.x - d.size*0.5, d.y - d.size*3.2); ctx.lineTo(d.x + d.size*0.5, d.y - d.size*3.2);
+            ctx.closePath(); ctx.fill();
+            // 艦体
+            ctx.fillStyle = "#33403a";
+            ctx.fillRect(d.x-d.size*0.5, d.y-d.size*0.22, d.size, d.size*0.44);
+            ctx.fillStyle = "#4a5a52";
+            ctx.fillRect(d.x-d.size*0.15, d.y-d.size*0.55, d.size*0.3, d.size*0.35);
+            ctx.fillStyle = "#1a2420";
+            ctx.fillRect(d.x-d.size*0.05, d.y-d.size*0.75, d.size*0.1, d.size*0.22);
+        });
+    } else if (stageNum === 2) {
+        // 島(密林): 地形パッチ + 樹冠クラスタ + 川
+        ctx.fillStyle = "#274a1c"; ctx.fillRect(0,0,canvas.width,canvas.height);
+        drawCloudShadows(dt, 0.14);
+        ctx.strokeStyle = "rgba(120,170,220,0.35)"; ctx.lineWidth = 10;
+        ctx.beginPath();
+        for (let y=-40;y<canvas.height+40;y+=20) {
+            const x = canvas.width*0.5 + Math.sin(y*0.02 + scrollY*0.01)*90;
+            if (y===-40) ctx.moveTo(x, y+sy); else ctx.lineTo(x, y+sy);
+        }
+        ctx.stroke();
+        groundDecor.forEach(d => {
+            d.y += dt * spd;
+            if (d.y > canvas.height + 40) d.y -= canvas.height + 80;
+            const base = d.seed>0.5 ? "#3a6a2a" : "#2f5a22";
+            const dark = d.seed>0.5 ? "#25451a" : "#1e3a16";
+            ctx.fillStyle = base;
+            ctx.beginPath(); ctx.arc(d.x, d.y, d.size*0.55, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = dark;
+            ctx.beginPath(); ctx.arc(d.x-d.size*0.15, d.y-d.size*0.1, d.size*0.22, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(d.x+d.size*0.18, d.y+d.size*0.14, d.size*0.18, 0, Math.PI*2); ctx.fill();
+            if (d.kind === 2) { ctx.fillStyle = "#6a5a3a"; ctx.fillRect(d.x-d.size*0.35, d.y+d.size*0.4, d.size*0.7, d.size*0.22); }
+        });
+    } else {
+        // 要塞基地: タイル床 + リベット + 砲台 + レーダー + 警戒ライン
+        ctx.fillStyle = "#26262c"; ctx.fillRect(0,0,canvas.width,canvas.height);
+        drawCloudShadows(dt, 0.16);
+        ctx.strokeStyle = "rgba(255,80,80,0.12)"; ctx.lineWidth = 1;
+        for (let y=-40;y<canvas.height+40;y+=40) { ctx.beginPath(); ctx.moveTo(0, y+sy); ctx.lineTo(canvas.width, y+sy); ctx.stroke(); }
+        for (let x=0;x<canvas.width;x+=50) { ctx.strokeStyle = "rgba(200,200,220,0.08)"; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
+        for (let y=-40;y<canvas.height+40;y+=40) for (let x=0;x<canvas.width;x+=50) {
+            ctx.fillStyle = "rgba(150,150,160,0.25)"; ctx.fillRect(x+2, (y+sy)+2, 2, 2); ctx.fillRect(x+46, (y+sy)+2, 2, 2);
+        }
+        groundDecor.forEach(d => {
+            d.y += dt * spd; d.rot += dt * 0.6;
+            if (d.y > canvas.height + 40) d.y -= canvas.height + 80;
+            ctx.fillStyle = "#3a3a42";
+            ctx.beginPath(); ctx.arc(d.x, d.y, d.size*0.5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#26262e";
+            ctx.beginPath(); ctx.arc(d.x, d.y, d.size*0.28, 0, Math.PI*2); ctx.fill();
+            if (d.kind === 0) {
+                // 対空砲(旋回する砲身)
+                ctx.strokeStyle = "#555"; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(d.x, d.y);
+                ctx.lineTo(d.x + Math.cos(d.rot)*d.size*0.7, d.y + Math.sin(d.rot)*d.size*0.7); ctx.stroke();
+                ctx.fillStyle = "#f33"; ctx.beginPath(); ctx.arc(d.x, d.y, 2, 0, Math.PI*2); ctx.fill();
+            } else if (d.kind === 1) {
+                // レーダー皿
+                ctx.strokeStyle = "#7a8"; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(d.x, d.y, d.size*0.4, Math.PI, Math.PI*2); ctx.stroke();
+            } else {
+                ctx.fillStyle = "#f33"; ctx.fillRect(d.x-d.size*0.15, d.y-d.size*0.15, d.size*0.3, d.size*0.3);
+            }
+        });
+    }
+}
+
+// ============ ウェーブ制御 ============
+const STAGE_LENGTH = 32; // 撃破必要体数(ボス出現までの目安)
+function initStage() {
+    enemies = []; enemyBullets = []; items = []; boss = null;
+    document.getElementById("boss-hp-container").style.display = "none";
+    document.getElementById("stage").innerText = stageNum;
+    stageTimer = 0; spawnTimer = 1; stageEnemiesLeft = STAGE_LENGTH + stageNum*6;
+    initGroundDecor(stageNum);
+    showBanner("wave-banner", "STAGE " + stageNum);
+}
+
+function spawnEnemyWave() {
+    const patterns = ["line", "vshape", "zigzagLine"];
+    const pat = patterns[Math.floor(Math.random()*patterns.length)];
+    const typePool = stageNum === 1 ? ["fighter","zigzag"] : (stageNum === 2 ? ["fighter","zigzag","bomber"] : ["fighter","zigzag","bomber"]);
+    if (pat === "line") {
+        const n = 5;
+        for (let i=0;i<n;i++) {
+            const type = typePool[Math.floor(Math.random()*typePool.length)];
+            enemies.push(makeEnemy(type, 40 + i*65, -30 - i*20));
+        }
+    } else if (pat === "vshape") {
+        const n = 5;
+        for (let i=0;i<n;i++) {
+            const type = typePool[Math.floor(Math.random()*typePool.length)];
+            const dx = Math.abs(i-2);
+            enemies.push(makeEnemy(type, 200 + (i-2)*40, -30 - dx*25));
+        }
+    } else {
+        const n = 6;
+        for (let i=0;i<n;i++) {
+            enemies.push(makeEnemy("zigzag", 30 + i*60, -30, i%2===0 ? 1 : -1));
+        }
+    }
+}
+
+function makeEnemy(type, x, y, zigDir=1) {
+    const spr = ENEMY_SPRITES[type];
+    const hp = type === "bomber" ? 5 : (type === "zigzag" ? 2 : 1);
+    const pts = type === "bomber" ? 150 : (type === "zigzag" ? 60 : 30);
+    return { type, x, y, w: spr.w*2.2, h: spr.h*2.2, hp, maxHp: hp, pts, vy: 60 + stageNum*8, t: 0, zigDir, shootT: Math.random()*1.5 };
+}
+
+function spawnBoss() {
+    const def = BOSSES[stageNum-1];
+    bossPhase = 1;
+    const maxHp = Math.floor((140 + stageNum*60) * def.hpMul);
+    boss = { def, x: 150, y: -80, w: def.sprite.w*def.scale*2.6, h: def.sprite.h*def.scale*2.6, hp: maxHp, maxHp, dir: 1, timer: 0, attackTimer: 0, entering: true };
+    document.getElementById("boss-hp-container").style.display = "block";
+    showBanner("boss-alert", "WARNING");
+}
+
+function showBanner(id, text) {
+    const el = document.getElementById(id);
+    el.innerText = text;
+    el.style.transition = "none"; el.style.opacity = "0";
+    requestAnimationFrame(() => {
+        el.style.transition = "opacity 0.3s";
+        el.style.opacity = "1";
+        setTimeout(() => { el.style.opacity = "0"; }, 1300);
+    });
+}
+
+// ============ 操作 ============
+let lastTouchX = null;
+window.addEventListener("touchstart", e => { ensureAudio(); if (e.target.closest("#bomb-btn,#pause-btn,button")) return; lastTouchX = e.touches[0].clientX; }, {passive: false});
+window.addEventListener("touchmove", e => {
+    if (gameState !== "PLAY" || lastTouchX === null) return;
+    const rect = canvas.getBoundingClientRect();
+    const scale = canvas.width / rect.width;
+    const dx = (e.touches[0].clientX - lastTouchX) * scale * player.ship.speed;
+    player.x = Math.max(0, Math.min(canvas.width - player.w, player.x + dx));
+    lastTouchX = e.touches[0].clientX;
+    e.preventDefault();
+}, {passive: false});
+let mouseDown = false;
+canvas.addEventListener("mousedown", e => { ensureAudio(); mouseDown = true; lastTouchX = e.clientX; });
+window.addEventListener("mouseup", () => mouseDown = false);
+window.addEventListener("mousemove", e => {
+    if (gameState !== "PLAY" || !mouseDown) return;
+    const rect = canvas.getBoundingClientRect();
+    const scale = canvas.width / rect.width;
+    const dx = (e.clientX - lastTouchX) * scale * player.ship.speed;
+    player.x = Math.max(0, Math.min(canvas.width - player.w, player.x + dx));
+    lastTouchX = e.clientX;
+});
+
+function togglePause() {
+    if (gameState === "PLAY") {
+        gameState = "PAUSE";
+        document.getElementById("pause-screen").style.display = "flex";
+    } else if (gameState === "PAUSE") {
+        gameState = "PLAY";
+        document.getElementById("pause-screen").style.display = "none";
+        lastTime = performance.now();
+        requestAnimationFrame(gameLoop);
+    }
+}
+window.addEventListener("keydown", e => { if (e.code === "KeyP" || e.code === "Escape") togglePause(); });
+
+function useBomb() {
+    if (gameState !== "PLAY" || bombStock <= 0) return;
+    bombStock--;
+    updateBombUI();
+    sfx.bomb();
+    shake = 35; bombFlashT = 0.4;
+    enemyBullets = [];
+    const dmg = 6 * player.ship.bombPower;
+    for (let i=enemies.length-1;i>=0;i--) {
+        enemies[i].hp -= dmg;
+        if (enemies[i].hp <= 0) { killEnemy(enemies[i], i); }
+    }
+    if (boss) {
+        boss.hp -= dmg * 2;
+        checkBossPhase();
+        if (boss.hp <= 0) defeatBoss();
+    }
+}
+function updateBombUI() {
+    document.getElementById("bomb-count").innerText = bombStock;
+    document.getElementById("bomb-btn").disabled = bombStock <= 0;
+}
+
+function loadHighScore() {
+    highScore = parseInt(localStorage.getItem("skyRaiders1945HighScore") || "0", 10);
+    document.getElementById("highscore").innerText = highScore;
+    document.getElementById("start-highscore").innerText = highScore;
+}
+loadHighScore();
+
+function startGame() {
+    ensureAudio();
+    document.getElementById("start-screen").style.display = "none";
+    gameState = "PLAY";
+    score = 0; life = 3; stageNum = 1; spGauge = 0; comboCount = 0; bombStock = 3;
+    player.ship = SHIPS[selectedShipIdx];
+    player.weaponLv = 1; player.x = 180; player.invuln = 0; player.bullets = [];
+    document.getElementById("life").innerText = life;
+    document.getElementById("score").innerText = score;
+    document.getElementById("weaponlv").innerText = "Lv1";
+    updateBombUI();
+    initStage();
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+}
+
+function spawnItem(x, y) {
+    if (Math.random() > 0.16) return;
+    const types = ["power", "bomb", "life", "score"];
+    const weights = [0.42, 0.22, 0.08, 0.28];
+    let r = Math.random(), acc = 0, chosen = types[0];
+    for (let i = 0; i < types.length; i++) { acc += weights[i]; if (r <= acc) { chosen = types[i]; break; } }
+    items.push({ x, y, w: 14, h: 14, type: chosen, vy: 90 });
+}
+
+function fireWeapon(now) {
+    const interval = player.ship.shotInterval;
+    if (now - player.lastShot <= interval) return;
+    player.lastShot = now;
+    sfx.shot();
+    const cx = player.x + player.w/2 - 2;
+    const lv = player.weaponLv;
+    const bp = player.ship.power;
+    if (lv >= 3) {
+        for (let i=-2; i<=2; i+=2) player.bullets.push({ x: cx, y: player.y, w: 4, h: 15, vx: i*2.2, dmg: bp, color: "#0af" });
+        player.bullets.push({ x: cx, y: player.y, w: 4, h: 15, vx: 0, dmg: bp, color: "#fff" });
+    } else if (lv === 2) {
+        player.bullets.push({ x: cx-6, y: player.y, w: 4, h: 12, vx: 0, dmg: bp, color: "#fff" });
+        player.bullets.push({ x: cx+6, y: player.y, w: 4, h: 12, vx: 0, dmg: bp, color: "#fff" });
+    } else {
+        player.bullets.push({ x: cx, y: player.y, w: 4, h: 12, vx: 0, dmg: bp, color: "#fff" });
+    }
+}
+
+function damagePlayer(now) {
+    if (player.invuln > 0) return;
+    life--; shake = 30; player.invuln = 1.6; comboCount = 0;
+    player.weaponLv = Math.max(1, player.weaponLv - 1);
+    document.getElementById("weaponlv").innerText = "Lv" + player.weaponLv;
+    sfx.hurt();
+    document.getElementById("life").innerText = life;
+    if (life <= 0) endGame(false);
+}
+
+function killEnemy(e, idx) {
+    createExplosion(e.x+e.w/2, e.y+e.h/2, "#ffa040", 10);
+    enemies.splice(idx, 1);
+    comboCount++; comboTimer = 0;
+    let pts = Math.floor(e.pts * (1 + comboCount * 0.08));
+    score += pts;
+    spawnItem(e.x+e.w/2, e.y+e.h/2);
+    spGauge = Math.min(100, spGauge + 2);
+    stageEnemiesLeft = Math.max(0, stageEnemiesLeft - 1);
+}
+
+function checkBossPhase() {
+    const ratio = boss.hp / boss.maxHp;
+    const newPhase = ratio > 0.6 ? 1 : (ratio > 0.3 ? 2 : 3);
+    if (newPhase !== bossPhase) { bossPhase = newPhase; shake = 15; }
+}
+
+function defeatBoss() {
+    createExplosion(boss.x + boss.w/2, boss.y + boss.h/2, "#ff8040", 50);
+    score += 3000 + stageNum*500; comboCount = 0; shake = 45;
+    sfx.explode();
+    boss = null;
+    document.getElementById("boss-hp-container").style.display = "none";
+    if (stageNum >= 3) {
+        setTimeout(()=>endGame(true), 300);
+    } else {
+        setTimeout(()=>{ sfx.stageClear(); stageNum++; initStage(); }, 400);
+        gameState = "STAGE_CLEAR_WAIT";
+        setTimeout(()=>{ if (gameState === "STAGE_CLEAR_WAIT") gameState = "PLAY"; }, 450);
+    }
+}
+
+function update(dt, now) {
+    if (shake > 0) shake -= dt * 40;
+    if (bombFlashT > 0) bombFlashT -= dt;
+    if (player.invuln > 0) player.invuln -= dt;
+    if (gameState !== "PLAY") return;
+
+    document.getElementById("sp-gauge-fill").style.width = spGauge + "%";
+    const buffs = [];
+    if (player.weaponLv >= 2) buffs.push("WEAPON Lv" + player.weaponLv);
+    document.getElementById("buff-status").innerText = buffs.join(" / ");
+
+    if (comboCount > 0) {
+        comboTimer += dt;
+        if (comboTimer > 3) { comboCount = Math.max(0, comboCount - 1); comboTimer = 0; }
+    }
+
+    fireWeapon(now);
+
+    // 自機弾の移動と当たり判定
+    for (let i = player.bullets.length - 1; i >= 0; i--) {
+        let b = player.bullets[i];
+        b.y -= player.ship.bulletSpeed * dt;
+        b.x += (b.vx || 0) * dt;
+        if (b.y < -20) { player.bullets.splice(i, 1); continue; }
+
+        if (boss) {
+            const bx = boss.x - boss.w/2, by = boss.y - boss.h/2;
+            if (b.x < bx+boss.w && b.x+b.w > bx && b.y < by+boss.h && b.y+b.h > by && !boss.entering) {
+                player.bullets.splice(i, 1);
+                boss.hp -= b.dmg;
+                sfx.bossHit();
+                createExplosion(b.x, b.y, "#f00", 3);
+                checkBossPhase();
+                document.getElementById("boss-hp-bar").style.width = Math.max(0,(boss.hp/boss.maxHp)*100) + "%";
+                if (boss.hp <= 0) defeatBoss();
+                continue;
+            }
+        }
+
+        for (let j = enemies.length - 1; j >= 0; j--) {
+            let e = enemies[j];
+            if (b.x > e.x-e.w/2 && b.x < e.x+e.w/2 && b.y > e.y-e.h/2 && b.y < e.y+e.h/2) {
+                e.hp -= b.dmg;
+                player.bullets.splice(i, 1);
+                createExplosion(b.x, b.y, "#0af", 3);
+                if (e.hp <= 0) {
+                    killEnemy(e, j);
+                    if (spGauge >= 100 && player.weaponLv < 3) { }
+                } else sfx.bossHit();
+                break;
+            }
+        }
+    }
+
+    // アイテム
+    for (let i = items.length-1; i>=0; i--) {
+        const it = items[i];
+        it.y += it.vy * dt;
+        if (it.y > canvas.height) { items.splice(i,1); continue; }
+        if (it.x < player.x+player.w && it.x+it.w > player.x && it.y < player.y+player.h && it.y+it.h > player.y) {
+            applyItem(it.type);
+            items.splice(i,1);
+        }
+    }
+
+    // 敵スポーン & ボス出現判定
+    if (!boss) {
+        stageTimer += dt;
+        spawnTimer -= dt;
+        if (spawnTimer <= 0 && stageEnemiesLeft > 0) {
+            spawnEnemyWave();
+            spawnTimer = Math.max(0.5, 1.6 - stageNum*0.08);
+        }
+        if (stageEnemiesLeft <= 0 && enemies.length === 0) {
+            spawnBoss();
+        }
+    } else {
+        updateBoss(dt, now);
+    }
+
+    // 敵の移動・攻撃
+    for (let i = enemies.length-1; i>=0; i--) {
+        const e = enemies[i];
+        e.t += dt;
+        e.y += e.vy * dt;
+        if (e.type === "zigzag") e.x += Math.sin(e.t*4) * 90 * dt * e.zigDir;
+        e.x = Math.max(15, Math.min(canvas.width-15, e.x));
+        e.shootT -= dt;
+        if (e.shootT <= 0 && e.y > 0 && e.y < 380) {
+            e.shootT = 1.4 + Math.random()*1.2 - stageNum*0.1;
+            const dx = (player.x+player.w/2) - e.x, dy = (player.y - e.y);
+            const len = Math.max(1, Math.hypot(dx,dy));
+            enemyBullets.push({ x: e.x, y: e.y, w: 4, h: 8, vx: dx/len*160, vy: dy/len*160 + 100 });
+        }
+        if (e.y > canvas.height + 40) enemies.splice(i, 1);
+    }
+
+    // 敵弾
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        let eb = enemyBullets[i];
+        eb.x += (eb.vx||0) * dt;
+        eb.y += (eb.vy||220) * dt;
+        if (eb.y > canvas.height || eb.y < -20 || eb.x < -20 || eb.x > canvas.width+20) { enemyBullets.splice(i, 1); continue; }
+        if (eb.x < player.x+player.w && eb.x+eb.w > player.x && eb.y < player.y+player.h && eb.y+eb.h > player.y) {
+            enemyBullets.splice(i, 1);
+            damagePlayer(now);
+        }
+    }
+
+    // 敵機体と自機の衝突
+    for (let i = enemies.length-1; i>=0; i--) {
+        const e = enemies[i];
+        if (e.x-e.w/2 < player.x+player.w && e.x+e.w/2 > player.x && e.y-e.h/2 < player.y+player.h && e.y+e.h/2 > player.y) {
+            createExplosion(e.x, e.y, "#ffa040", 12);
+            enemies.splice(i,1);
+            damagePlayer(now);
+        }
+    }
+
+    for(let i=particles.length-1; i>=0; i--) {
+        let p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.life -= dt * 2;
+        if(p.life <= 0) particles.splice(i, 1);
+    }
+
+    document.getElementById("score").innerText = score;
+}
+
+function applyItem(type) {
+    sfx.item();
+    if (type === "power") { player.weaponLv = Math.min(3, player.weaponLv + 1); document.getElementById("weaponlv").innerText = "Lv"+player.weaponLv; score += 50; }
+    else if (type === "bomb") { bombStock = Math.min(5, bombStock + 1); updateBombUI(); score += 50; }
+    else if (type === "life") { life = Math.min(9, life+1); document.getElementById("life").innerText = life; }
+    else if (type === "score") { score += 300 * (1+Math.floor(comboCount/5)); }
+}
+
+function updateBoss(dt, now) {
+    if (boss.entering) {
+        boss.y += 60*dt;
+        if (boss.y >= 90) { boss.y = 90; boss.entering = false; }
+        return;
+    }
+    boss.timer += dt; boss.attackTimer += dt;
+    const speed = 70 + bossPhase * 25;
+    boss.x += speed * boss.dir * dt;
+    if (boss.x > canvas.width - boss.w/2 || boss.x < boss.w/2) boss.dir *= -1;
+
+    const interval = bossPhase === 1 ? 1.0 : (bossPhase === 2 ? 0.65 : 0.4);
+    if (boss.attackTimer > interval) {
+        boss.attackTimer = 0;
+        const bx = boss.x, by = boss.y + boss.h/2;
+        if (bossPhase === 1) {
+            enemyBullets.push({ x: bx, y: by, w: 6, h: 14, vx: 0, vy: 240 });
+        } else if (bossPhase === 2) {
+            for (let a=-1;a<=1;a++) enemyBullets.push({ x: bx, y: by, w: 6, h: 14, vx: a*90, vy: 260 });
+        } else {
+            for (let a=-2;a<=2;a++) enemyBullets.push({ x: bx, y: by, w: 6, h: 14, vx: a*80, vy: 260 });
+            if (Math.random()<0.5) enemyBullets.push({ x: bx, y: by, w:6, h:14, vx: (player.x-bx)*0.6, vy: 280 });
+        }
+    }
+}
+
+function draw(dt) {
+    ctx.save();
+    if (shake > 0) ctx.translate(Math.random()*shake - shake/2, Math.random()*shake - shake/2);
+    drawBackground(dt);
+
+    // バリア的な演出は無し。パーティクル
+    particles.forEach(p => {
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+    });
+    ctx.globalAlpha = 1.0;
+
+    // プレイヤー
+    if (player.ship) {
+        const flashing = player.invuln > 0 && Math.floor(Date.now()/80)%2===0;
+        if (!flashing) {
+            const s = player.ship.sprite, scale = 1.7;
+            drawSprite(s, player.x - (s.w*scale - player.w)/2, player.y - (s.h*scale - player.h)/2, scale, false);
+        }
+        // エンジン炎
+        ctx.fillStyle = Math.floor(Date.now()/60)%2===0 ? "#ffcc44" : "#ff8822";
+        ctx.fillRect(player.x + player.w/2 - 3, player.y + player.h - 2, 6, 8 + Math.random()*4);
+    }
+
+    // 敵
+    enemies.forEach(e => {
+        const s = ENEMY_SPRITES[e.type], scale = e.w / s.w;
+        drawSprite(s, e.x - e.w/2, e.y - e.h/2, scale, false);
+    });
+
+    if (boss) {
+        const s = boss.def.sprite, scale = boss.w / s.w;
+        const blink = Math.floor(Date.now()/150)%2===0;
+        drawSprite(s, boss.x - boss.w/2, boss.y - boss.h/2, scale, false);
+        if (blink) { ctx.fillStyle = "#ff0"; ctx.fillRect(boss.x-2, boss.y+boss.h*0.15, 4, 4); }
+    }
+
+    // アイテム
+    items.forEach(it => {
+        const colors = { power:"#0af", bomb:"#f55", life:"#3f3", score:"#fa0" };
+        ctx.fillStyle = colors[it.type] || "#fff";
+        ctx.beginPath(); ctx.arc(it.x+7, it.y+7, 7, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#000"; ctx.font = "9px Courier New"; ctx.textAlign = "center";
+        const labels = { power:"P", bomb:"B", life:"L", score:"$" };
+        ctx.fillText(labels[it.type]||"?", it.x+7, it.y+10);
+    });
+
+    // 弾
+    player.bullets.forEach(b => {
+        ctx.fillStyle = b.color;
+        ctx.shadowBlur = 6; ctx.shadowColor = b.color;
+        ctx.fillRect(b.x, b.y, b.w, b.h);
+    });
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#f33"; enemyBullets.forEach(eb => ctx.fillRect(eb.x-eb.w/2, eb.y-eb.h/2, eb.w, eb.h));
+
+    if (bombFlashT > 0) { ctx.fillStyle = `rgba(255,220,150,${bombFlashT})`; ctx.fillRect(0,0,canvas.width,canvas.height); }
+
+    ctx.restore();
+}
+
+function gameLoop(timestamp) {
+    if (gameState !== "PLAY" && gameState !== "STAGE_CLEAR_WAIT") return;
+    let dt = (timestamp - lastTime) / 1000;
+    if (dt > 0.1) dt = 0.1;
+    lastTime = timestamp;
+    update(dt, timestamp);
+    draw(dt);
+    requestAnimationFrame(gameLoop);
+}
+
+function endGame(cleared) {
+    gameState = "RESULT";
+    sfx.gameOver();
+    if (score > highScore) { highScore = score; localStorage.setItem("skyRaiders1945HighScore", String(highScore)); }
+    document.getElementById("highscore").innerText = highScore;
+    document.getElementById("result-screen").style.display = "flex";
+    document.getElementById("result-msg").innerText = cleared ? "MISSION COMPLETE" : "GAME OVER";
+    const isNewRecord = score >= highScore && score > 0;
+    document.getElementById("final-stats").innerHTML =
+        `SCORE: ${score} ${isNewRecord ? '<span style="color:#fa0">NEW RECORD!</span>' : ''}<br>STAGE: ${stageNum}<br>HIGH SCORE: ${highScore}`;
+}
+</script>
+</body>
+</html>
