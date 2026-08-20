@@ -5,21 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>INVADER EVO: OVERDRIVE</title>
     <style>
-        /* 既存のスタイルを継承しつつ、ゲージ用スタイルを追加 */
         html, body { background: #000; color: #fff; text-align: center; font-family: 'Courier New', sans-serif; overflow: hidden; touch-action: none; margin: 0; width: 100%; height: 100%; -webkit-user-select: none; }
         #game-container { display: flex; flex-direction: column; height: 100vh; position: relative; }
         .ui-top { height: 80px; display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center; background: rgba(10, 10, 20, 0.9); color: #0f0; font-size: 11px; border-bottom: 2px solid #0af; padding-top: env(safe-area-inset-top); z-index: 10; }
         #screen-area { position: relative; flex-grow: 1; width: 100%; background: radial-gradient(circle, #001 0%, #000 100%); overflow: hidden; }
         canvas { display: block; margin: 0 auto; width: 100%; height: 100%; object-fit: contain; }
-        #touch-area { height: 100px; background: #050505; display: flex; flex-direction: column; align-items: center; justify-content: center; border-top: 1px solid #333; padding-bottom: env(safe-area-inset-bottom); }
-        
-        /* スペシャルゲージ */
+        #touch-area { height: 100px; background: #050505; display: flex; flex-direction: column; align-items: center; justify-content: center; border-top: 1px solid #333; padding-bottom: env(safe-area-inset-bottom); position: relative; }
+
         #sp-gauge-container { position: absolute; bottom: 10px; left: 10%; width: 80%; height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
         #sp-gauge-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #0af, #fff); transition: width 0.1s; box-shadow: 0 0 10px #0af; }
-        
+
+        #wave-banner { position: absolute; top: 40%; left: 0; width: 100%; text-align: center; color: #0af; font-size: 26px; font-weight: bold; text-shadow: 0 0 15px #0af; opacity: 0; pointer-events: none; z-index: 20; letter-spacing: 4px; }
+        #boss-alert { position: absolute; top: 45%; left: 0; width: 100%; text-align: center; color: #f33; font-size: 30px; font-weight: bold; text-shadow: 0 0 15px #f33; opacity: 0; pointer-events: none; z-index: 20; letter-spacing: 6px; }
+
         .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
-        button { padding: 15px 40px; font-size: 20px; background: #0af; color: #fff; border: none; font-weight: bold; border-radius: 5px; cursor: pointer; box-shadow: 0 0 15px #0af; }
+        button { padding: 15px 40px; font-size: 20px; background: #0af; color: #fff; border: none; font-weight: bold; border-radius: 5px; cursor: pointer; box-shadow: 0 0 15px #0af; margin-top: 8px; }
+        button.secondary { background: #333; box-shadow: none; font-size: 14px; padding: 10px 24px; }
         .stat-val { color: #fff; font-size: 16px; font-weight: bold; }
+        #pause-btn { position: absolute; top: 8px; right: 10px; background: rgba(0,0,0,0.4); border: 1px solid #0af; color: #0af; font-size: 14px; padding: 6px 10px; border-radius: 4px; box-shadow: none; z-index: 15; }
+        #buff-status { font-weight:bold; height:20px; color:#0af; font-size:14px; }
     </style>
 </head>
 <body>
@@ -27,24 +31,38 @@
 <div id="game-container">
     <div class="ui-top">
         <div>SCORE <br><span id="score" class="stat-val">0</span></div>
+        <div>HIGH <br><span id="highscore" class="stat-val" style="color:#fa0">0</span></div>
         <div>LIFE <br><span id="life" class="stat-val">3</span></div>
         <div>WAVE <br><span id="wave" class="stat-val">1</span></div>
         <div>COMBO <br><span id="combo" class="stat-val" style="color:#0af">x1.0</span></div>
     </div>
-    
+
     <div id="screen-area">
         <div id="boss-hp-container" style="position:absolute; top:10px; left:10%; width:80%; height:8px; border:1px solid #f00; display:none;">
             <div id="boss-hp-bar" style="width:100%; height:100%; background:#f00;"></div>
         </div>
-        
+
         <canvas id="gameCanvas" width="400" height="500"></canvas>
-        
+
+        <div id="wave-banner"></div>
+        <div id="boss-alert">WARNING</div>
+
         <div id="sp-gauge-container"><div id="sp-gauge-fill"></div></div>
+
+        <button id="pause-btn" onclick="togglePause()">II</button>
 
         <div id="start-screen" class="overlay">
             <h1 style="color:#0af; margin:0; font-size: 32px; text-shadow: 0 0 20px #0af;">INVADER EVO</h1>
-            <p style="color:#fff; font-size:14px; margin-bottom: 20px;">OVERDRIVE EDITION</p>
+            <p style="color:#fff; font-size:14px; margin-bottom: 6px;">OVERDRIVE EDITION</p>
+            <p style="color:#888; font-size:11px; margin-bottom: 20px;">HIGH SCORE: <span id="start-highscore">0</span></p>
             <button onclick="startGame()">MISSION START</button>
+            <p style="color:#666; font-size:10px; margin-top:16px; line-height:1.6;">ドラッグで移動・自動射撃<br>アイテムを取って武器強化<br>ゲージMAXでオーバードライブ発動</p>
+        </div>
+
+        <div id="pause-screen" class="overlay" style="display:none">
+            <h2 style="color:#0af;">PAUSE</h2>
+            <button onclick="togglePause()">RESUME</button>
+            <button class="secondary" onclick="location.reload()">QUIT</button>
         </div>
 
         <div id="result-screen" class="overlay" style="display:none">
@@ -55,7 +73,7 @@
     </div>
 
     <div id="touch-area">
-        <div id="buff-status" style="font-weight:bold; height:20px; color:#0af; font-size:14px;"></div>
+        <div id="buff-status"></div>
         <div style="color:#555; font-size:10px; margin-top:5px;">CHARGE GAUGE TO ACTIVATE OVERDRIVE</div>
     </div>
 </div>
@@ -64,70 +82,125 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// --- スプライト（既存のものを使用） ---
+// --- スプライト ---
 const sprites = {
     top: [[0,0,0,1,1,0,0,0],[0,0,1,1,1,1,0,0],[0,1,1,1,1,1,1,0],[1,1,0,1,1,0,1,1],[1,1,1,1,1,1,1,1],[0,0,1,0,0,1,0,0],[0,1,0,1,1,0,1,0],[1,0,1,0,0,1,0,1]],
     mid: [[0,0,1,0,0,1,0,0],[1,0,0,1,1,0,0,1],[1,0,1,1,1,1,0,1],[1,1,1,0,0,1,1,1],[0,1,1,1,1,1,1,0],[0,0,1,1,1,1,0,0],[0,1,0,0,0,0,1,0],[1,0,0,0,0,0,0,1]],
     bot: [[0,0,0,1,1,0,0,0],[0,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1],[1,1,0,1,1,0,1,1],[1,1,1,1,1,1,1,1],[0,0,1,1,1,1,0,0],[0,1,1,0,0,1,1,0],[1,1,0,0,0,0,1,1]],
+    elite: [[0,0,1,1,1,1,0,0],[0,1,1,0,0,1,1,0],[1,1,1,1,1,1,1,1],[1,0,1,1,1,1,0,1],[1,1,1,0,0,1,1,1],[0,1,0,1,1,0,1,0],[1,0,1,0,0,1,0,1],[0,1,0,0,0,0,1,0]],
     boss: [[0,0,0,0,1,1,1,1,1,1,0,0,0,0],[0,0,1,1,1,1,1,1,1,1,1,1,0,0],[0,1,1,1,1,1,1,1,1,1,1,1,1,0],[1,1,0,0,1,1,0,0,1,1,0,0,1,1],[1,1,0,0,1,1,0,0,1,1,0,0,1,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1],[0,0,1,1,0,0,1,1,0,0,1,1,0,0],[0,1,1,0,0,1,1,1,1,0,0,1,1,0]],
     ufo: [[0,0,0,1,1,1,1,0,0,0],[0,1,1,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1,1,1],[1,1,0,1,1,1,1,0,1,1],[0,0,1,1,0,0,1,1,0,0]]
 };
 
-// --- ゲーム状態管理 ---
-let gameState = "TITLE", score = 0, life = 3, wave = 1, lastTime = 0;
-let enemies = [], enemyBullets = [], items = [], barriers = [], particles = [], ufo = null, boss = null, stars = [];
-let enemyDir = 1, enemyTimer = 0, enemyMoveInterval = 600, shake = 0, comboCount = 0;
-let spGauge = 0; // 0 to 100
-
-const player = { 
-    x: 180, y: 440, w: 30, h: 18, bullets: [], lastShot: 0, 
-    moveSens: 1.8, shotInterval: 350, bulletSpeed: 650, 
-    hasShield: false, overdrive: 0 
+// --- サウンド (WebAudio プロシージャル) ---
+let actx = null;
+function ensureAudio() { if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} } }
+function beep(freq, dur, type="square", vol=0.15, slideTo=null) {
+    if (!actx) return;
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, actx.currentTime);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, actx.currentTime + dur);
+    g.gain.setValueAtTime(vol, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(); o.stop(actx.currentTime + dur);
+}
+const sfx = {
+    shot: () => beep(880, 0.06, "square", 0.05, 1200),
+    hit: () => beep(300, 0.08, "square", 0.08, 100),
+    explode: () => beep(150, 0.25, "sawtooth", 0.15, 40),
+    bossHit: () => beep(200, 0.05, "triangle", 0.08, 150),
+    item: () => beep(600, 0.12, "sine", 0.12, 1000),
+    overdrive: () => beep(100, 0.5, "sawtooth", 0.2, 900),
+    hurt: () => beep(200, 0.3, "sawtooth", 0.18, 60),
+    waveClear: () => { beep(500,0.1,"sine",0.1,700); setTimeout(()=>beep(700,0.15,"sine",0.1,1000),100); },
+    gameOver: () => beep(300, 0.8, "sawtooth", 0.15, 50),
+    ufo: () => beep(1200, 0.15, "sine", 0.08, 800)
 };
 
-// パーティクル生成関数
+// --- ゲーム状態 ---
+let gameState = "TITLE", score = 0, life = 3, wave = 1, lastTime = 0, highScore = 0;
+let enemies = [], enemyBullets = [], items = [], barriers = [], particles = [], ufo = null, boss = null, stars = [];
+let enemyDir = 1, enemyTimer = 0, enemyMoveInterval = 600, shake = 0, comboCount = 0, comboTimer = 0;
+let spGauge = 0, ufoTimer = 0, bossPhase = 1;
+
+const player = {
+    x: 180, y: 440, w: 30, h: 18, bullets: [], lastShot: 0,
+    moveSens: 1.8, shotInterval: 350, bulletSpeed: 650,
+    shield: 0, overdrive: 0, weaponLv: 1, invuln: 0
+};
+
 function createExplosion(x, y, color, count=8) {
     for(let i=0; i<count; i++) {
-        particles.push({
-            x: x, y: y,
-            vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10,
-            life: 1.0, color: color, size: Math.random()*3+1
-        });
+        particles.push({ x, y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, life: 1.0, color, size: Math.random()*3+1 });
     }
 }
 
 function initStars() {
     stars = [];
-    for(let i=0; i<40; i++) stars.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*2+0.5 });
+    for(let i=0; i<50; i++) stars.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*2+0.5, layer: Math.random()<0.5?1:2 });
+}
+
+function initBarriers() {
+    barriers = [];
+    const positions = [40, 140, 240, 340];
+    positions.forEach(bx => {
+        const blocks = [];
+        for (let r = 0; r < 3; r++) for (let c = 0; c < 5; c++) {
+            if (r === 2 && (c === 2)) continue;
+            blocks.push({ x: bx + c*6, y: 360 + r*6, hp: 3 });
+        }
+        barriers.push(blocks);
+    });
 }
 
 function initWave() {
-    enemies = []; enemyBullets = []; items = []; boss = null;
+    enemies = []; enemyBullets = []; boss = null;
     document.getElementById("boss-hp-container").style.display = "none";
     document.getElementById("wave").innerText = wave;
-    
+
     if (wave % 5 === 0) {
-        boss = { x: 150, y: 50, w: 112, h: 64, hp: 50 + wave * 10, maxHp: 50 + wave * 10, dir: 1 };
+        bossPhase = 1;
+        boss = { x: 150, y: 50, w: 112, h: 64, hp: 60 + wave * 12, maxHp: 60 + wave * 12, dir: 1, timer: 0, attackTimer: 0 };
         document.getElementById("boss-hp-container").style.display = "block";
+        showBanner("boss-alert", "WARNING");
+        if (barriers.length === 0) initBarriers();
     } else {
         const rows = Math.min(7, 4 + Math.floor(wave/2));
+        const eliteUnlocked = wave >= 4;
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < 8; c++) {
-                enemies.push({ 
-                    x: c * 40 + 40, y: r * 30 + 60, w: 22, h: 22, 
-                    type: r==0?'top':(r<3?'mid':'bot'), 
-                    pts: (5-r)*10,
-                    phase: Math.random() * Math.PI * 2 // 個別の動き用
+                const isElite = eliteUnlocked && r === 0 && Math.random() < 0.25;
+                enemies.push({
+                    x: c * 40 + 40, y: r * 30 + 60, w: 22, h: 22,
+                    type: isElite ? 'elite' : (r==0?'top':(r<3?'mid':'bot')),
+                    pts: isElite ? 80 : (5-Math.min(r,4))*10,
+                    hp: isElite ? 3 : 1,
+                    phase: Math.random() * Math.PI * 2,
+                    diving: false, baseX: 0, baseY: 0, diveT: 0
                 });
             }
         }
+        initBarriers();
+        showBanner("wave-banner", "WAVE " + wave);
     }
-    enemyMoveInterval = Math.max(100, 500 - (wave * 30));
+    enemyMoveInterval = Math.max(90, 500 - (wave * 25));
+}
+
+function showBanner(id, text) {
+    const el = document.getElementById(id);
+    el.innerText = text;
+    el.style.transition = "none"; el.style.opacity = "0";
+    requestAnimationFrame(() => {
+        el.style.transition = "opacity 0.3s";
+        el.style.opacity = "1";
+        setTimeout(() => { el.style.opacity = "0"; }, 1200);
+    });
 }
 
 // タッチ操作
 let lastTouchX = null;
-window.addEventListener("touchstart", e => { lastTouchX = e.touches[0].clientX; }, {passive: false});
+window.addEventListener("touchstart", e => { ensureAudio(); lastTouchX = e.touches[0].clientX; }, {passive: false});
 window.addEventListener("touchmove", e => {
     if (gameState !== "PLAY") return;
     const rect = canvas.getBoundingClientRect();
@@ -137,74 +210,172 @@ window.addEventListener("touchmove", e => {
     lastTouchX = e.touches[0].clientX;
     e.preventDefault();
 }, {passive: false});
+// マウス操作(PC対応)
+let mouseDown = false;
+canvas.addEventListener("mousedown", e => { ensureAudio(); mouseDown = true; lastTouchX = e.clientX; });
+window.addEventListener("mouseup", () => mouseDown = false);
+window.addEventListener("mousemove", e => {
+    if (gameState !== "PLAY" || !mouseDown) return;
+    const rect = canvas.getBoundingClientRect();
+    const scale = canvas.width / rect.width;
+    const dx = (e.clientX - lastTouchX) * scale * player.moveSens;
+    player.x = Math.max(0, Math.min(canvas.width - player.w, player.x + dx));
+    lastTouchX = e.clientX;
+});
+
+function togglePause() {
+    if (gameState === "PLAY") {
+        gameState = "PAUSE";
+        document.getElementById("pause-screen").style.display = "flex";
+    } else if (gameState === "PAUSE") {
+        gameState = "PLAY";
+        document.getElementById("pause-screen").style.display = "none";
+        lastTime = performance.now();
+        requestAnimationFrame(gameLoop);
+    }
+}
+window.addEventListener("keydown", e => { if (e.code === "KeyP" || e.code === "Escape") togglePause(); });
+
+function loadHighScore() {
+    highScore = parseInt(localStorage.getItem("invaderEvoHighScore") || "0", 10);
+    document.getElementById("highscore").innerText = highScore;
+    document.getElementById("start-highscore").innerText = highScore;
+}
+loadHighScore();
 
 function startGame() {
+    ensureAudio();
     document.getElementById("start-screen").style.display = "none";
     gameState = "PLAY";
-    score = 0; life = 3; wave = 1; spGauge = 0;
+    score = 0; life = 3; wave = 1; spGauge = 0; comboCount = 0; ufoTimer = 4 + Math.random()*8;
+    player.weaponLv = 1; player.shield = 0; player.overdrive = 0; player.x = 180; player.invuln = 0;
+    document.getElementById("life").innerText = life;
+    document.getElementById("score").innerText = score;
+    barriers = [];
     initStars(); initWave();
     lastTime = performance.now();
     requestAnimationFrame(gameLoop);
 }
 
+function spawnItem(x, y) {
+    if (Math.random() > 0.14) return;
+    const types = ["weapon", "shield", "life", "score"];
+    const weights = [0.42, 0.28, 0.08, 0.22];
+    let r = Math.random(), acc = 0, chosen = types[0];
+    for (let i = 0; i < types.length; i++) { acc += weights[i]; if (r <= acc) { chosen = types[i]; break; } }
+    items.push({ x, y, w: 14, h: 14, type: chosen, vy: 90 });
+}
+
+function fireWeapon(now) {
+    let currentInterval = (player.overdrive > 0) ? 90 : player.shotInterval;
+    if (now - player.lastShot <= currentInterval) return;
+    player.lastShot = now;
+    sfx.shot();
+    const cx = player.x + player.w/2 - 2;
+    const lv = player.overdrive > 0 ? 3 : player.weaponLv;
+    if (lv >= 3) {
+        for (let i=-2; i<=2; i+=2) player.bullets.push({ x: cx, y: player.y, w: 4, h: 15, vx: i*2.2, color: "#0af" });
+        player.bullets.push({ x: cx, y: player.y, w: 4, h: 15, vx: 0, color: "#fff" });
+    } else if (lv === 2) {
+        player.bullets.push({ x: cx-6, y: player.y, w: 4, h: 12, vx: 0, color: "#fff" });
+        player.bullets.push({ x: cx+6, y: player.y, w: 4, h: 12, vx: 0, color: "#fff" });
+    } else {
+        player.bullets.push({ x: cx, y: player.y, w: 4, h: 12, vx: 0, color: "#fff" });
+    }
+}
+
+function damagePlayer(now) {
+    if (player.invuln > 0) return;
+    if (player.shield > 0) { player.shield--; player.invuln = 1.0; sfx.hit(); createExplosion(player.x+player.w/2, player.y, "#0af", 10); return; }
+    life--; shake = 30; player.invuln = 1.5; comboCount = 0;
+    sfx.hurt();
+    document.getElementById("life").innerText = life;
+    if (life <= 0) endGame(false);
+}
+
 function update(dt, now) {
     if (shake > 0) shake -= dt * 40;
+    if (player.invuln > 0) player.invuln -= dt;
 
-    // スペシャルゲージの更新
     document.getElementById("sp-gauge-fill").style.width = spGauge + "%";
     if (player.overdrive > 0) {
         player.overdrive -= dt;
         spGauge = (player.overdrive / 5) * 100;
-        if (player.overdrive <= 0) {
-            player.shotInterval = 350;
-            player.bulletSpeed = 650;
-        }
+        document.getElementById("buff-status").innerText = "OVERDRIVE!! " + player.overdrive.toFixed(1);
+    } else {
+        const buffs = [];
+        if (player.weaponLv >= 2) buffs.push("WEAPON Lv" + player.weaponLv);
+        if (player.shield > 0) buffs.push("SHIELD x" + player.shield);
+        document.getElementById("buff-status").innerText = buffs.join(" / ");
     }
 
-    // 星の背景
+    // コンボ減衰
+    if (comboCount > 0) {
+        comboTimer += dt;
+        if (comboTimer > 3) { comboCount = Math.max(0, comboCount - 1); comboTimer = 0; }
+    }
+
     stars.forEach(s => {
-        s.y += s.s * 1.5;
+        s.y += s.s * (s.layer === 2 ? 1.5 : 0.7);
         if (s.y > canvas.height) { s.y = 0; s.x = Math.random() * canvas.width; }
     });
 
-    // パーティクルの更新
     for(let i=particles.length-1; i>=0; i--) {
         let p = particles[i];
         p.x += p.vx; p.y += p.vy; p.life -= dt * 2;
         if(p.life <= 0) particles.splice(i, 1);
     }
 
-    // プレイヤーの攻撃
-    let currentInterval = (player.overdrive > 0) ? 100 : player.shotInterval;
-    if (now - player.lastShot > currentInterval) {
-        if (player.overdrive > 0) {
-            // オーバードライブ中は3WAY
-            for(let i=-1; i<=1; i++) {
-                player.bullets.push({ x: player.x+player.w/2-2, y: player.y, w: 4, h: 15, vx: i*2, color: "#0af" });
-            }
-        } else {
-            player.bullets.push({ x: player.x+player.w/2-2, y: player.y, w: 4, h: 12, vx: 0, color: "#fff" });
-        }
-        player.lastShot = now;
-    }
+    fireWeapon(now);
 
     // 弾の移動
     for (let i = player.bullets.length - 1; i >= 0; i--) {
         let b = player.bullets[i];
         b.y -= player.bulletSpeed * dt;
-        b.x += b.vx || 0;
-        if (b.y < 0) { player.bullets.splice(i, 1); comboCount = 0; continue; }
+        b.x += (b.vx || 0);
+        if (b.y < 0) { player.bullets.splice(i, 1); continue; }
+
+        let consumed = false;
+
+        // バリアとの当たり判定
+        for (const wall of barriers) {
+            for (let k = wall.length-1; k>=0; k--) {
+                const blk = wall[k];
+                if (b.x < blk.x+6 && b.x+b.w > blk.x && b.y < blk.y+6 && b.y+b.h > blk.y) {
+                    blk.hp--; if (blk.hp <= 0) wall.splice(k,1);
+                    player.bullets.splice(i,1); consumed = true; break;
+                }
+            }
+            if (consumed) break;
+        }
+        if (consumed) continue;
 
         // ボス当たり判定
         if (boss && b.x < boss.x + boss.w && b.x + b.w > boss.x && b.y < boss.y + boss.h && b.y + b.h > boss.y) {
             player.bullets.splice(i, 1);
             boss.hp--;
+            sfx.bossHit();
             createExplosion(b.x, b.y, "#f00", 3);
+            updateBossPhase();
             if (boss.hp <= 0) {
-                createExplosion(boss.x + boss.w/2, boss.y + boss.h/2, "#f00", 30);
-                score += 2000; wave++; shake = 40; initWave();
+                createExplosion(boss.x + boss.w/2, boss.y + boss.h/2, "#f00", 40);
+                score += 2000 + wave*50; comboCount = 0; wave++; shake = 40; sfx.explode();
+                setTimeout(()=>sfx.waveClear(), 200);
+                initWave();
             }
-            document.getElementById("boss-hp-bar").style.width = (boss.hp/boss.maxHp)*100 + "%";
+            document.getElementById("boss-hp-bar").style.width = Math.max(0,(boss.hp/boss.maxHp)*100) + "%";
+            continue;
+        }
+
+        // UFO当たり判定
+        if (ufo && b.x < ufo.x+ufo.w && b.x+b.w > ufo.x && b.y < ufo.y+ufo.h && b.y+b.h > ufo.y) {
+            player.bullets.splice(i,1);
+            createExplosion(ufo.x+ufo.w/2, ufo.y+ufo.h/2, "#fa0", 20);
+            const bonus = 150 * (1 + Math.floor(comboCount/5));
+            score += bonus; sfx.ufo();
+            spGauge = Math.min(100, spGauge + 15);
+            if (spGauge >= 100 && player.overdrive <= 0) { player.overdrive = 5.0; sfx.overdrive(); }
+            ufo = null;
             continue;
         }
 
@@ -212,77 +383,188 @@ function update(dt, now) {
         for (let j = enemies.length - 1; j >= 0; j--) {
             let e = enemies[j];
             if (b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
-                createExplosion(e.x+e.w/2, e.y+e.h/2, "#0af", 10);
+                e.hp--;
                 player.bullets.splice(i, 1);
-                enemies.splice(j, 1);
-                comboCount++;
-                let pts = Math.floor(e.pts * (1 + comboCount * 0.1));
-                score += pts;
-                if (player.overdrive <= 0) {
-                    spGauge = Math.min(100, spGauge + 2);
-                    if (spGauge >= 100) { player.overdrive = 5.0; shake = 20; }
+                createExplosion(b.x, b.y, "#0af", 4);
+                if (e.hp <= 0) {
+                    createExplosion(e.x+e.w/2, e.y+e.h/2, "#0af", 10);
+                    enemies.splice(j, 1);
+                    comboCount++; comboTimer = 0;
+                    let pts = Math.floor(e.pts * (1 + comboCount * 0.1));
+                    score += pts;
+                    spawnItem(e.x+e.w/2, e.y+e.h/2);
+                    if (player.overdrive <= 0) {
+                        spGauge = Math.min(100, spGauge + 2.5);
+                        if (spGauge >= 100) { player.overdrive = 5.0; shake = 20; sfx.overdrive(); }
+                    }
+                } else {
+                    sfx.bossHit();
                 }
                 break;
             }
         }
     }
 
+    // アイテム移動 & 取得
+    for (let i = items.length-1; i>=0; i--) {
+        const it = items[i];
+        it.y += it.vy * dt;
+        if (it.y > canvas.height) { items.splice(i,1); continue; }
+        if (it.x < player.x+player.w && it.x+it.w > player.x && it.y < player.y+player.h && it.y+it.h > player.y) {
+            applyItem(it.type);
+            items.splice(i,1);
+        }
+    }
+
+    // UFO出現
+    if (!boss) {
+        ufoTimer -= dt;
+        if (!ufo && ufoTimer <= 0) {
+            ufo = { x: -20, y: 30, w: 30, h: 15, dir: Math.random()<0.5?1:-1 };
+            if (ufo.dir === -1) ufo.x = canvas.width + 20;
+            ufoTimer = 12 + Math.random()*10;
+        }
+        if (ufo) {
+            ufo.x += ufo.dir * 90 * dt;
+            if (ufo.x < -40 || ufo.x > canvas.width+40) ufo = null;
+        }
+    }
+
     // 敵の挙動
     if (boss) {
-        boss.x += 150 * boss.dir * dt;
-        if (boss.x > canvas.width - boss.w || boss.x < 0) boss.dir *= -1;
-        if (Math.random() < 0.08) enemyBullets.push({ x: boss.x + Math.random()*boss.w, y: boss.y + boss.h, w: 6, h: 16, isBoss: true });
+        updateBoss(dt, now);
     } else {
         enemyTimer += dt * 1000;
         if (enemyTimer > enemyMoveInterval) {
             let hitEdge = false;
-            enemies.forEach(e => { 
-                e.x += 15 * enemyDir; 
-                if (e.x > canvas.width - 25 || e.x < 5) hitEdge = true; 
+            enemies.forEach(e => {
+                if (e.diving) return;
+                e.x += 15 * enemyDir;
+                if (e.x > canvas.width - 25 || e.x < 5) hitEdge = true;
             });
-            if (hitEdge) { 
-                enemyDir *= -1; 
-                enemies.forEach(e => e.y += 15); 
+            if (hitEdge) {
+                enemyDir *= -1;
+                enemies.forEach(e => { if (!e.diving) e.y += 15; });
             }
             enemyTimer = 0;
-            if (enemies.some(e => e.y > 400)) endGame();
+            if (enemies.some(e => !e.diving && e.y > 400)) endGame(false);
         }
-        if (Math.random() < 0.02 + (wave*0.005) && enemies.length > 0) {
-            const s = enemies[Math.floor(Math.random() * enemies.length)];
-            enemyBullets.push({ x: s.x + s.w/2, y: s.y + s.h, w: 3, h: 10 });
+        // ダイブ攻撃(wave3以降)
+        if (wave >= 3) {
+            enemies.forEach(e => {
+                if (!e.diving && Math.random() < 0.0003 * dt * 1000 * (1+wave*0.05)) {
+                    e.diving = true; e.baseX = e.x; e.baseY = e.y; e.diveT = 0;
+                }
+                if (e.diving) {
+                    e.diveT += dt;
+                    e.x = e.baseX + Math.sin(e.diveT*2) * 60;
+                    e.y = e.baseY + e.diveT * 120;
+                    if (e.y > canvas.height + 30) { e.diving = false; e.x = e.baseX; e.y = e.baseY; }
+                    if (e.x < player.x+player.w && e.x+e.w > player.x && e.y < player.y+player.h && e.y+e.h > player.y) {
+                        damagePlayer(now);
+                        createExplosion(e.x, e.y, "#f33", 10);
+                        enemies = enemies.filter(en => en !== e);
+                    }
+                }
+            });
+        }
+        if (Math.random() < 0.018 + (wave*0.004) && enemies.length > 0) {
+            const shooters = enemies.filter(e => !e.diving);
+            if (shooters.length) {
+                const s = shooters[Math.floor(Math.random() * shooters.length)];
+                enemyBullets.push({ x: s.x + s.w/2, y: s.y + s.h, w: 3, h: 10, vx: s.type==='elite' ? aimedVX(s) : 0 });
+            }
         }
     }
 
     // 敵の弾
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         let eb = enemyBullets[i];
-        eb.y += (eb.isBoss ? 350 : 280) * dt;
+        eb.y += (eb.isBoss ? 300 : 280) * dt;
+        eb.x += (eb.vx || 0) * dt;
         if (eb.y > canvas.height) { enemyBullets.splice(i, 1); continue; }
+
+        let hitWall = false;
+        for (const wall of barriers) {
+            for (let k = wall.length-1; k>=0; k--) {
+                const blk = wall[k];
+                if (eb.x < blk.x+6 && eb.x+eb.w > blk.x && eb.y < blk.y+6 && eb.y+eb.h > blk.y) {
+                    blk.hp--; if (blk.hp <= 0) wall.splice(k,1);
+                    enemyBullets.splice(i,1); hitWall = true; break;
+                }
+            }
+            if (hitWall) break;
+        }
+        if (hitWall) continue;
 
         if (eb.x < player.x+player.w && eb.x+eb.w > player.x && eb.y < player.y+player.h && eb.y+eb.h > player.y) {
             enemyBullets.splice(i, 1);
-            life--;
-            shake = 30;
-            document.getElementById("life").innerText = life;
-            if (life <= 0) endGame();
+            damagePlayer(now);
         }
     }
 
     document.getElementById("score").innerText = score;
     document.getElementById("combo").innerText = "x" + (1 + comboCount * 0.1).toFixed(1);
-    if (!boss && enemies.length === 0) { wave++; initWave(); }
+    if (!boss && enemies.length === 0) { wave++; sfx.waveClear(); initWave(); }
+}
+
+function aimedVX(s) {
+    const dx = (player.x - s.x);
+    return Math.max(-80, Math.min(80, dx * 0.3));
+}
+
+function applyItem(type) {
+    sfx.item();
+    if (type === "weapon") { player.weaponLv = Math.min(3, player.weaponLv + 1); score += 50; }
+    else if (type === "shield") { player.shield = Math.min(3, player.shield + 1); score += 50; }
+    else if (type === "life") { life = Math.min(9, life+1); document.getElementById("life").innerText = life; }
+    else if (type === "score") { score += 300 * (1+Math.floor(comboCount/5)); }
+}
+
+function updateBossPhase() {
+    const ratio = boss.hp / boss.maxHp;
+    const newPhase = ratio > 0.66 ? 1 : (ratio > 0.33 ? 2 : 3);
+    if (newPhase !== bossPhase) { bossPhase = newPhase; shake = 15; }
+}
+
+function updateBoss(dt, now) {
+    boss.timer += dt;
+    boss.attackTimer += dt;
+    const speed = 100 + bossPhase * 30;
+    boss.x += speed * boss.dir * dt;
+    if (boss.x > canvas.width - boss.w || boss.x < 0) boss.dir *= -1;
+
+    const interval = bossPhase === 1 ? 0.9 : (bossPhase === 2 ? 0.6 : 0.4);
+    if (boss.attackTimer > interval) {
+        boss.attackTimer = 0;
+        if (bossPhase === 1) {
+            enemyBullets.push({ x: boss.x + boss.w/2, y: boss.y + boss.h, w: 6, h: 16, isBoss: true, vx: 0 });
+        } else if (bossPhase === 2) {
+            for (let a=-1; a<=1; a++) enemyBullets.push({ x: boss.x + boss.w/2, y: boss.y + boss.h, w: 6, h: 16, isBoss: true, vx: a*70 });
+        } else {
+            for (let a=-2; a<=2; a++) enemyBullets.push({ x: boss.x + boss.w/2, y: boss.y + boss.h, w: 6, h: 16, isBoss: true, vx: a*60 });
+        }
+    }
 }
 
 function draw() {
     ctx.save();
     if (shake > 0) ctx.translate(Math.random()*shake - shake/2, Math.random()*shake - shake/2);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // 背景の星
-    ctx.fillStyle = "#fff";
-    stars.forEach(s => ctx.fillRect(s.x, s.y, s.s, s.s));
 
-    // パーティクル
+    ctx.fillStyle = "#fff";
+    stars.forEach(s => { ctx.globalAlpha = s.layer===2?1:0.5; ctx.fillRect(s.x, s.y, s.s, s.s); });
+    ctx.globalAlpha = 1.0;
+
+    // バリア
+    ctx.fillStyle = "#0a5";
+    barriers.forEach(wall => wall.forEach(blk => {
+        ctx.globalAlpha = blk.hp / 3 * 0.6 + 0.4;
+        ctx.fillStyle = blk.hp >= 3 ? "#0af" : (blk.hp === 2 ? "#088" : "#044");
+        ctx.fillRect(blk.x, blk.y, 6, 6);
+    }));
+    ctx.globalAlpha = 1.0;
+
     particles.forEach(p => {
         ctx.globalAlpha = p.life;
         ctx.fillStyle = p.color;
@@ -290,20 +572,42 @@ function draw() {
     });
     ctx.globalAlpha = 1.0;
 
-    // プレイヤー（オーバードライブ中は光る）
-    ctx.fillStyle = (player.overdrive > 0 && Date.now()%100<50) ? "#fff" : "#0af";
-    ctx.fillRect(player.x, player.y + 6, player.w, 12);
-    ctx.fillRect(player.x + 11, player.y, 8, 6);
+    // プレイヤー
+    const flashing = player.invuln > 0 && Math.floor(Date.now()/80)%2===0;
+    if (!flashing) {
+        ctx.fillStyle = (player.overdrive > 0 && Date.now()%100<50) ? "#fff" : "#0af";
+        ctx.fillRect(player.x, player.y + 6, player.w, 12);
+        ctx.fillRect(player.x + 11, player.y, 8, 6);
+    }
     if (player.overdrive > 0) {
         ctx.strokeStyle = "#0af"; ctx.lineWidth = 2;
         ctx.strokeRect(player.x-2, player.y-2, player.w+4, player.h+4);
     }
+    if (player.shield > 0) {
+        ctx.strokeStyle = "rgba(0,170,255,0.6)"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(player.x+player.w/2, player.y+player.h/2, 22, 0, Math.PI*2); ctx.stroke();
+    }
 
     // 敵
-    if (boss) drawPixelSprite(sprites.boss, boss.x, boss.y, 8, "#f33");
+    if (boss) {
+        const bossColor = bossPhase===1 ? "#f33" : (bossPhase===2 ? "#f80" : "#f0f");
+        if (Math.floor(Date.now()/60)%2===0 || bossPhase < 3) drawPixelSprite(sprites.boss, boss.x, boss.y, 8, bossColor);
+    }
     else enemies.forEach(e => {
-        const color = e.type === 'top' ? "#f0f" : (e.type === 'mid' ? "#0cf" : "#fff");
+        const color = e.type === 'elite' ? "#fa0" : (e.type === 'top' ? "#f0f" : (e.type === 'mid' ? "#0cf" : "#fff"));
         drawPixelSprite(sprites[e.type], e.x, e.y, 2.8, color);
+    });
+
+    if (ufo) drawPixelSprite(sprites.ufo, ufo.x, ufo.y, 3, "#fa0");
+
+    // アイテム
+    items.forEach(it => {
+        const colors = { weapon:"#0af", shield:"#0ff", life:"#f33", score:"#fa0" };
+        ctx.fillStyle = colors[it.type] || "#fff";
+        ctx.beginPath(); ctx.arc(it.x+7, it.y+7, 7, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#000"; ctx.font = "9px Courier New"; ctx.textAlign = "center";
+        const labels = { weapon:"W", shield:"S", life:"L", score:"$" };
+        ctx.fillText(labels[it.type]||"?", it.x+7, it.y+10);
     });
 
     // 弾
@@ -334,10 +638,16 @@ function gameLoop(timestamp) {
     requestAnimationFrame(gameLoop);
 }
 
-function endGame() {
+function endGame(cleared) {
     gameState = "RESULT";
+    sfx.gameOver();
+    if (score > highScore) { highScore = score; localStorage.setItem("invaderEvoHighScore", String(highScore)); }
+    document.getElementById("highscore").innerText = highScore;
     document.getElementById("result-screen").style.display = "flex";
-    document.getElementById("final-stats").innerHTML = `SCORE: ${score}<br>WAVE: ${wave}`;
+    document.getElementById("result-msg").innerText = cleared ? "MISSION COMPLETE" : "GAME OVER";
+    const isNewRecord = score >= highScore && score > 0;
+    document.getElementById("final-stats").innerHTML =
+        `SCORE: ${score} ${isNewRecord ? '<span style="color:#fa0">NEW RECORD!</span>' : ''}<br>WAVE: ${wave}<br>HIGH SCORE: ${highScore}`;
 }
 </script>
 </body>
