@@ -172,12 +172,49 @@ const SHIPS = [
     }
 ];
 
+// 自機イラストの縁取り(アウトライン)生成: 背景と同系色になっても視認できるよう、
+// シルエットを複数方向にスタンプして輪郭を作る(shadowBlurのような滲みを避けるための技法)。
+// Pythonで3ステージ分の背景色に合成して監査済みの配色・半径をそのまま移植している。
+function buildOutlinedImage(img) {
+    const pad = 4;
+    const off = document.createElement("canvas");
+    off.width = img.width + pad*2;
+    off.height = img.height + pad*2;
+    const octx = off.getContext("2d");
+
+    function silhouette(color) {
+        const c = document.createElement("canvas");
+        c.width = img.width; c.height = img.height;
+        const cctx = c.getContext("2d");
+        cctx.drawImage(img, 0, 0);
+        cctx.globalCompositeOperation = "source-in";
+        cctx.fillStyle = color;
+        cctx.fillRect(0, 0, img.width, img.height);
+        return c;
+    }
+    function stamp(silCanvas, radius, steps) {
+        for (let i = 0; i < steps; i++) {
+            const a = (i/steps) * Math.PI*2;
+            octx.drawImage(silCanvas, pad + Math.cos(a)*radius, pad + Math.sin(a)*radius);
+        }
+    }
+
+    stamp(silhouette("rgba(6,14,24,0.6)"), 3.2, 16);   // 外側の暗いハロー(背景から確実に分離)
+    stamp(silhouette("#a8ecff"), 1.4, 16);              // 内側の明るいリム(輪郭を締める)
+    octx.drawImage(img, pad, pad);
+    return off;
+}
+
 // 画像アセットの読み込み(未読み込み/失敗時は既存のドット絵buildSpriteに自動フォールバック)
 SHIPS.forEach(ship => {
     ship.imgLoaded = false;
     if (!ship.imgSrc) return;
     const img = new Image();
-    img.onload = () => { ship.imgLoaded = true; if (gameState === "TITLE") buildShipPicker(); };
+    img.onload = () => {
+        ship.imgLoaded = true;
+        try { ship.outlineImg = buildOutlinedImage(img); } catch(e) { ship.outlineImg = null; }
+        if (gameState === "TITLE") buildShipPicker();
+    };
     img.onerror = () => { ship.imgLoaded = false; };
     img.src = ship.imgSrc;
     ship.img = img;
@@ -306,10 +343,11 @@ function buildShipPicker() {
         const pctx = prevCanvas.getContext("2d");
         if (ship.imgLoaded) {
             pctx.imageSmoothingEnabled = true;
-            const iw = ship.img.width, ih = ship.img.height;
+            const srcImg = ship.outlineImg || ship.img;
+            const iw = srcImg.width, ih = srcImg.height;
             const scale = Math.min((84-10)/iw, (84-10)/ih);
             const ox = (84 - iw*scale)/2, oy = (84 - ih*scale)/2;
-            pctx.drawImage(ship.img, ox, oy, iw*scale, ih*scale);
+            pctx.drawImage(srcImg, ox, oy, iw*scale, ih*scale);
         } else {
             pctx.imageSmoothingEnabled = false;
             const s = ship.sprite;
@@ -393,7 +431,8 @@ function drawBackground(dt) {
         });
     } else if (stageNum === 2) {
         // 島(密林): 地形パッチ + 樹冠クラスタ + 川
-        ctx.fillStyle = "#274a1c"; ctx.fillRect(0,0,canvas.width,canvas.height);
+        // 色相をオリーブ寄りから青緑寄りにずらし、緑迷彩の自機との衝突を避ける(縁取りに加えた補完的な調整)
+        ctx.fillStyle = "#1c4a3a"; ctx.fillRect(0,0,canvas.width,canvas.height);
         drawCloudShadows(dt, 0.14);
         ctx.strokeStyle = "rgba(120,170,220,0.35)"; ctx.lineWidth = 10;
         ctx.beginPath();
@@ -920,7 +959,7 @@ function draw(dt) {
         const flashing = player.invuln > 0 && Math.floor(Date.now()/80)%2===0;
         if (!flashing) {
             if (player.ship.imgLoaded) {
-                const img = player.ship.img;
+                const img = player.ship.outlineImg || player.ship.img;
                 const rh = 56, rw = rh * (img.width / img.height);
                 ctx.imageSmoothingEnabled = true;
                 ctx.drawImage(img, player.x + player.w/2 - rw/2, player.y + player.h/2 - rh/2, rw, rh);
