@@ -124,7 +124,7 @@ function drawSprite(spr, x, y, scale, flashWhite) {
 
 const SHIPS = [
     {
-        id: 0, name: "ライトニング", desc: "バランス型",
+        id: 0, name: "ライトニング", desc: "バランス型", subWeapon: "search",
         speed: 1.8, power: 2, bombPower: 2, shotInterval: 260, bulletSpeed: 720,
         sprite: buildSprite([
             "p.........",
@@ -148,7 +148,7 @@ const SHIPS = [
         ], { b:"#2b5fd6", h:"#6ea8ff", s:"#123a8a", g:"#0a1a33", c:"#a8ecff", w:"#b9c6d8", u:"#e6eefc", r:"#ff3b3b", m:"#ffe14d", p:"#333333" })
     },
     {
-        id: 1, name: "コメット", desc: "高速連射型",
+        id: 1, name: "コメット", desc: "高速連射型", subWeapon: "laser",
         speed: 2.6, power: 1, bombPower: 1, shotInterval: 150, bulletSpeed: 780,
         sprite: buildSprite([
             "p.........",
@@ -248,9 +248,22 @@ let shake = 0, comboCount = 0, comboTimer = 0, spGauge = 0, bombStock = 3, bombF
 let spawnTimer = 0, stageTimer = 0, stageEnemiesLeft = 0, bossPhase = 1, scrollY = 0;
 
 const player = {
-    x: 180, y: 420, w: 26, h: 28, bullets: [], lastShot: 0,
+    x: 180, y: 420, w: 26, h: 28, bullets: [], lastShot: 0, lastSubShot: 0,
     weaponLv: 1, invuln: 0, ship: null
 };
+
+function findNearestTarget(fromX, fromY) {
+    let best = null, bestDist = Infinity;
+    if (boss && !boss.entering) {
+        const d = Math.hypot(boss.x - fromX, boss.y - fromY);
+        if (d < bestDist) { bestDist = d; best = boss; }
+    }
+    enemies.forEach(e => {
+        const d = Math.hypot(e.x - fromX, e.y - fromY);
+        if (d < bestDist) { bestDist = d; best = e; }
+    });
+    return best;
+}
 
 function createExplosion(x, y, color, count=8) {
     for(let i=0; i<count; i++) {
@@ -427,25 +440,29 @@ function initStage() {
     showBanner("wave-banner", "STAGE " + stageNum);
 }
 
+// ステージ開始直後は緩やかに、経過時間とともに現在の密度まで上がっていく難易度カーブ
+function difficultyFactor() { return Math.min(1, stageTimer / 16); }
+
 function spawnEnemyWave() {
+    const df = difficultyFactor();
     const patterns = ["line", "vshape", "zigzagLine"];
     const pat = patterns[Math.floor(Math.random()*patterns.length)];
     const typePool = stageNum === 1 ? ["fighter","zigzag"] : (stageNum === 2 ? ["fighter","zigzag","bomber"] : ["fighter","zigzag","bomber"]);
     if (pat === "line") {
-        const n = 5;
+        const n = Math.max(3, Math.round(5 - (1-df)*2));
         for (let i=0;i<n;i++) {
             const type = typePool[Math.floor(Math.random()*typePool.length)];
             enemies.push(makeEnemy(type, 40 + i*65, -30 - i*20));
         }
     } else if (pat === "vshape") {
-        const n = 5;
+        const n = Math.max(3, Math.round(5 - (1-df)*2));
         for (let i=0;i<n;i++) {
             const type = typePool[Math.floor(Math.random()*typePool.length)];
             const dx = Math.abs(i-2);
             enemies.push(makeEnemy(type, 200 + (i-2)*40, -30 - dx*25));
         }
     } else {
-        const n = 6;
+        const n = Math.max(4, Math.round(6 - (1-df)*2));
         for (let i=0;i<n;i++) {
             enemies.push(makeEnemy("zigzag", 30 + i*60, -30, i%2===0 ? 1 : -1));
         }
@@ -481,26 +498,33 @@ function showBanner(id, text) {
 
 // ============ 操作 ============
 let lastTouchX = null;
-window.addEventListener("touchstart", e => { ensureAudio(); if (e.target.closest("#bomb-btn,#pause-btn,button")) return; lastTouchX = e.touches[0].clientX; }, {passive: false});
+let lastTouchY = null;
+window.addEventListener("touchstart", e => { ensureAudio(); if (e.target.closest("#bomb-btn,#pause-btn,button")) return; lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY; }, {passive: false});
 window.addEventListener("touchmove", e => {
     if (gameState !== "PLAY" || lastTouchX === null) return;
     const rect = canvas.getBoundingClientRect();
     const scale = canvas.width / rect.width;
     const dx = (e.touches[0].clientX - lastTouchX) * scale * player.ship.speed;
+    const dy = (e.touches[0].clientY - lastTouchY) * scale * player.ship.speed;
     player.x = Math.max(0, Math.min(canvas.width - player.w, player.x + dx));
+    player.y = Math.max(0, Math.min(canvas.height - player.h, player.y + dy));
     lastTouchX = e.touches[0].clientX;
+    lastTouchY = e.touches[0].clientY;
     e.preventDefault();
 }, {passive: false});
 let mouseDown = false;
-canvas.addEventListener("mousedown", e => { ensureAudio(); mouseDown = true; lastTouchX = e.clientX; });
+canvas.addEventListener("mousedown", e => { ensureAudio(); mouseDown = true; lastTouchX = e.clientX; lastTouchY = e.clientY; });
 window.addEventListener("mouseup", () => mouseDown = false);
 window.addEventListener("mousemove", e => {
     if (gameState !== "PLAY" || !mouseDown) return;
     const rect = canvas.getBoundingClientRect();
     const scale = canvas.width / rect.width;
     const dx = (e.clientX - lastTouchX) * scale * player.ship.speed;
+    const dy = (e.clientY - lastTouchY) * scale * player.ship.speed;
     player.x = Math.max(0, Math.min(canvas.width - player.w, player.x + dx));
+    player.y = Math.max(0, Math.min(canvas.height - player.h, player.y + dy));
     lastTouchX = e.clientX;
+    lastTouchY = e.clientY;
 });
 
 function togglePause() {
@@ -552,7 +576,7 @@ function startGame() {
     gameState = "PLAY";
     score = 0; life = 3; stageNum = 1; spGauge = 0; comboCount = 0; bombStock = 3;
     player.ship = SHIPS[selectedShipIdx];
-    player.weaponLv = 1; player.x = 180; player.invuln = 0; player.bullets = [];
+    player.weaponLv = 1; player.x = 180; player.y = 420; player.invuln = 0; player.bullets = []; player.lastSubShot = 0;
     document.getElementById("life").innerText = life;
     document.getElementById("score").innerText = score;
     document.getElementById("weaponlv").innerText = "Lv1";
@@ -578,8 +602,11 @@ function fireWeapon(now) {
     sfx.shot();
     const cx = player.x + player.w/2 - 2;
     const lv = player.weaponLv;
-    const bp = player.ship.power;
-    if (lv >= 3) {
+    const bp = player.ship.power * (lv >= 5 ? 1.5 : 1);
+    if (lv >= 4) {
+        // Lv4-5: 5WAY(Lv5は威力強化)
+        for (let i=-2; i<=2; i++) player.bullets.push({ x: cx, y: player.y, w: 4, h: 15, vx: i*2.4, dmg: bp, color: lv>=5?"#fff":"#0af" });
+    } else if (lv === 3) {
         for (let i=-2; i<=2; i+=2) player.bullets.push({ x: cx, y: player.y, w: 4, h: 15, vx: i*2.2, dmg: bp, color: "#0af" });
         player.bullets.push({ x: cx, y: player.y, w: 4, h: 15, vx: 0, dmg: bp, color: "#fff" });
     } else if (lv === 2) {
@@ -587,6 +614,30 @@ function fireWeapon(now) {
         player.bullets.push({ x: cx+6, y: player.y, w: 4, h: 12, vx: 0, dmg: bp, color: "#fff" });
     } else {
         player.bullets.push({ x: cx, y: player.y, w: 4, h: 12, vx: 0, dmg: bp, color: "#fff" });
+    }
+}
+
+// 機体固有のサブ武装(武装Lvと連動して自動強化。Strikers 1945のサーチバルカン/オートレーザー相当)
+function fireSubWeapon(now) {
+    const lv = player.weaponLv;
+    if (lv < 2 || !player.ship.subWeapon) return;
+    const interval = Math.max(220, 620 - lv*80);
+    if (now - player.lastSubShot <= interval) return;
+    player.lastSubShot = now;
+    const cx = player.x + player.w/2 - 2;
+    const bp = player.ship.power;
+    if (player.ship.subWeapon === "search") {
+        const count = lv >= 4 ? 2 : 1;
+        for (let i=0; i<count; i++) {
+            const side = i===0 ? -1 : 1;
+            player.bullets.push({ x: cx + side*8, y: player.y+6, w: 3, h: 8, vx: side*40, dmg: bp*0.5, color: "#7fffd4", homing: true, turnRate: 3.2 });
+        }
+    } else if (player.ship.subWeapon === "laser") {
+        const count = lv >= 4 ? 2 : 1;
+        for (let i=0; i<count; i++) {
+            const side = count===1 ? 0 : (i===0?-1:1);
+            player.bullets.push({ x: cx + side*9, y: player.y, w: 3, h: 24, vx: 0, dmg: bp*0.7, color: "#ff66ff", pierce: true, hitsLeft: 4 });
+        }
     }
 }
 
@@ -641,6 +692,9 @@ function update(dt, now) {
     document.getElementById("sp-gauge-fill").style.width = spGauge + "%";
     const buffs = [];
     if (player.weaponLv >= 2) buffs.push("WEAPON Lv" + player.weaponLv);
+    if (player.weaponLv >= 2 && player.ship.subWeapon) {
+        buffs.push(player.ship.subWeapon === "search" ? "SEARCH VULCAN" : "AUTO LASER");
+    }
     document.getElementById("buff-status").innerText = buffs.join(" / ");
 
     if (comboCount > 0) {
@@ -649,18 +703,33 @@ function update(dt, now) {
     }
 
     fireWeapon(now);
+    fireSubWeapon(now);
 
     // 自機弾の移動と当たり判定
     for (let i = player.bullets.length - 1; i >= 0; i--) {
         let b = player.bullets[i];
-        b.y -= player.ship.bulletSpeed * dt;
-        b.x += (b.vx || 0) * dt;
-        if (b.y < -20) { player.bullets.splice(i, 1); continue; }
+        if (b.homing) {
+            if (b.vy === undefined) b.vy = -player.ship.bulletSpeed*0.55;
+            const target = findNearestTarget(b.x, b.y);
+            if (target) {
+                const dx = target.x - b.x, dy = target.y - b.y;
+                const len = Math.max(1, Math.hypot(dx, dy));
+                const spd = player.ship.bulletSpeed*0.55;
+                const turn = Math.min(1, b.turnRate * dt);
+                b.vx += (dx/len*spd - b.vx) * turn;
+                b.vy += (dy/len*spd - b.vy) * turn;
+            }
+            b.x += b.vx * dt; b.y += b.vy * dt;
+        } else {
+            b.y -= player.ship.bulletSpeed * dt;
+            b.x += (b.vx || 0) * dt;
+        }
+        if (b.y < -20 || b.y > canvas.height+20 || b.x < -20 || b.x > canvas.width+20) { player.bullets.splice(i, 1); continue; }
 
         if (boss) {
             const bx = boss.x - boss.w/2, by = boss.y - boss.h/2;
             if (b.x < bx+boss.w && b.x+b.w > bx && b.y < by+boss.h && b.y+b.h > by && !boss.entering) {
-                player.bullets.splice(i, 1);
+                if (!b.pierce || --b.hitsLeft <= 0) player.bullets.splice(i, 1);
                 boss.hp -= b.dmg;
                 sfx.bossHit();
                 createExplosion(b.x, b.y, "#f00", 3);
@@ -675,7 +744,7 @@ function update(dt, now) {
             let e = enemies[j];
             if (b.x > e.x-e.w/2 && b.x < e.x+e.w/2 && b.y > e.y-e.h/2 && b.y < e.y+e.h/2) {
                 e.hp -= b.dmg;
-                player.bullets.splice(i, 1);
+                if (!b.pierce || --b.hitsLeft <= 0) player.bullets.splice(i, 1);
                 createExplosion(b.x, b.y, "#0af", 3);
                 if (e.hp <= 0) {
                     killEnemy(e, j);
@@ -703,7 +772,7 @@ function update(dt, now) {
         spawnTimer -= dt;
         if (spawnTimer <= 0 && stageEnemiesLeft > 0) {
             spawnEnemyWave();
-            spawnTimer = Math.max(0.5, 1.6 - stageNum*0.08);
+            spawnTimer = Math.max(0.5, (1.6 - stageNum*0.08) + (1-difficultyFactor())*1.1);
         }
         if (stageEnemiesLeft <= 0 && enemies.length === 0) {
             spawnBoss();
@@ -721,10 +790,23 @@ function update(dt, now) {
         e.x = Math.max(15, Math.min(canvas.width-15, e.x));
         e.shootT -= dt;
         if (e.shootT <= 0 && e.y > 0 && e.y < 380) {
-            e.shootT = 1.4 + Math.random()*1.2 - stageNum*0.1;
-            const dx = (player.x+player.w/2) - e.x, dy = (player.y - e.y);
-            const len = Math.max(1, Math.hypot(dx,dy));
-            enemyBullets.push({ x: e.x, y: e.y, w: 4, h: 8, vx: dx/len*160, vy: dy/len*160 + 100 });
+            const cooldownBonus = (1-difficultyFactor())*0.9; // ステージ開始直後は射撃間隔を延ばして緩やかに
+            if (e.type === "fighter") {
+                // 基本雑魚: 自機を狙わない直進弾のみ(読みやすさ優先)
+                e.shootT = 1.6 + Math.random()*1.0 - stageNum*0.08 + cooldownBonus;
+                enemyBullets.push({ x: e.x, y: e.y, w: 4, h: 8, vx: 0, vy: 150 });
+            } else if (e.type === "bomber") {
+                // 中型: 固定間隔で左右2方向に撃ち分ける砲台的パターン(狙い撃ちしない)
+                e.shootT = 1.8 + Math.random()*0.6 - stageNum*0.05 + cooldownBonus;
+                enemyBullets.push({ x: e.x, y: e.y, w: 4, h: 8, vx: -70, vy: 140 });
+                enemyBullets.push({ x: e.x, y: e.y, w: 4, h: 8, vx: 70, vy: 140 });
+            } else {
+                // ジグザグ: 弱めの狙い撃ち(速度を抑えて回避しやすく)
+                e.shootT = 1.7 + Math.random()*1.2 - stageNum*0.08 + cooldownBonus;
+                const dx = (player.x+player.w/2) - e.x, dy = (player.y - e.y);
+                const len = Math.max(1, Math.hypot(dx,dy));
+                enemyBullets.push({ x: e.x, y: e.y, w: 4, h: 8, vx: dx/len*100, vy: dy/len*100 + 70 });
+            }
         }
         if (e.y > canvas.height + 40) enemies.splice(i, 1);
     }
@@ -762,8 +844,11 @@ function update(dt, now) {
 
 function applyItem(type) {
     sfx.item();
-    if (type === "power") { player.weaponLv = Math.min(3, player.weaponLv + 1); document.getElementById("weaponlv").innerText = "Lv"+player.weaponLv; score += 50; }
-    else if (type === "bomb") { bombStock = Math.min(5, bombStock + 1); updateBombUI(); score += 50; }
+    if (type === "power") { player.weaponLv = Math.min(5, player.weaponLv + 1); document.getElementById("weaponlv").innerText = "Lv"+player.weaponLv; score += 50; }
+    else if (type === "bomb") {
+        if (bombStock >= 9) { score += 10000; } // 実機準拠: ストック上限超過は得点ボーナスに変換
+        else { bombStock++; updateBombUI(); score += 50; }
+    }
     else if (type === "life") { life = Math.min(9, life+1); document.getElementById("life").innerText = life; }
     else if (type === "score") { score += 300 * (1+Math.floor(comboCount/5)); }
 }
@@ -784,12 +869,12 @@ function updateBoss(dt, now) {
         boss.attackTimer = 0;
         const bx = boss.x, by = boss.y + boss.h/2;
         if (bossPhase === 1) {
-            enemyBullets.push({ x: bx, y: by, w: 6, h: 14, vx: 0, vy: 240 });
+            enemyBullets.push({ x: bx, y: by, w: 6, h: 14, vx: 0, vy: 190 });
         } else if (bossPhase === 2) {
-            for (let a=-1;a<=1;a++) enemyBullets.push({ x: bx, y: by, w: 6, h: 14, vx: a*90, vy: 260 });
+            for (let a=-1;a<=1;a++) enemyBullets.push({ x: bx, y: by, w: 6, h: 14, vx: a*75, vy: 200 });
         } else {
-            for (let a=-2;a<=2;a++) enemyBullets.push({ x: bx, y: by, w: 6, h: 14, vx: a*80, vy: 260 });
-            if (Math.random()<0.5) enemyBullets.push({ x: bx, y: by, w:6, h:14, vx: (player.x-bx)*0.6, vy: 280 });
+            for (let a=-2;a<=2;a++) enemyBullets.push({ x: bx, y: by, w: 6, h: 14, vx: a*65, vy: 210 });
+            if (Math.random()<0.5) enemyBullets.push({ x: bx, y: by, w:6, h:14, vx: (player.x-bx)*0.45, vy: 220 });
         }
     }
 }
