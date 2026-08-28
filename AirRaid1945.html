@@ -1303,12 +1303,27 @@ function update(dt, now) {
         }
     }
 
-    // 女王バチのデコイ分身(bossDecoys)の更新: 寿命が尽きたら消滅、ゆっくり漂い、たまに単発弾を撃つ。
+    // 女王バチのデコイ分身(bossDecoys)の更新: 寿命が尽きたら消滅、たまに単発弾を撃つ。
     // 自機との接触判定はあえて付けていない(本体の当たり判定と混同されるのを避けるための判断。詳細はspawnBossDecoysのコメント参照)。
+    // 「本体に付随せず、子分バチが独自に飛んでいるように見せたい」というリクエストに応え、
+    // 出現時の速度のまま一直線に流れて消えるだけだった動きに、定期的な方向転換(うろつき)を追加する。
     for (let i = bossDecoys.length-1; i>=0; i--) {
         const d = bossDecoys[i];
         d.life -= dt;
         if (d.life <= 0) { bossDecoys.splice(i, 1); continue; }
+        if (d.wanderT === undefined) d.wanderT = 0.3 + Math.random() * 0.4;
+        d.wanderT -= dt;
+        if (d.wanderT <= 0) {
+            // 完全ランダムな方向転換ではなく、画面中央寄りへ弱く引き戻す力を混ぜることで、
+            // 子分バチが画面外へ飛び去ったまま戻らなくなるのを防ぎつつ、各々ばらばらに飛んでいるように見せる。
+            const toCenterX = canvas.width/2 - d.x, toCenterY = canvas.height*0.4 - d.y;
+            const pullLen = Math.max(1, Math.hypot(toCenterX, toCenterY));
+            const randAng = Math.random() * Math.PI * 2;
+            const speed = 22 + Math.random() * 24;
+            d.vx = Math.cos(randAng) * speed + (toCenterX/pullLen) * 12;
+            d.vy = Math.sin(randAng) * speed + (toCenterY/pullLen) * 12;
+            d.wanderT = 0.6 + Math.random() * 0.6;
+        }
         d.x += d.vx * dt; d.y += d.vy * dt;
         d.shootT -= dt;
         if (d.shootT <= 0 && boss && boss.state === "battle") {
@@ -1543,13 +1558,24 @@ function spawnBossDecoys(bx, by) {
     const aspect = (boss.def.imgLoaded && boss.def.img.naturalWidth) ? (boss.def.img.naturalWidth / boss.def.img.naturalHeight) : (boss.w / boss.h);
     const decoyW = aspect >= 1 ? DECOY_SIZE : DECOY_SIZE * aspect;
     const decoyH = aspect >= 1 ? DECOY_SIZE / aspect : DECOY_SIZE;
+    // 本体が大型化したため、本体の半径(半対角線)より確実に外側から出現させないと
+    // 分身が本体の陰に隠れたまま視認されずに終わる(プレイテストで「分身体が確認できない」と報告された原因)。
+    // 本体サイズに連動させることで、今後さらに本体を拡大しても常に本体の外側から出現するようにする。
+    const bossHalfDiag = Math.hypot(boss.w, boss.h) / 2;
     for (let i = 0; i < count; i++) {
         const ang = Math.random() * Math.PI * 2;
-        const dist = 45 + Math.random() * 35;
+        const dist = bossHalfDiag + 25 + Math.random() * 25;
+        // 本体の外側に出すための距離だが、そのまま使うと画面外(特にボスが画面上部にいる時は上方向)に
+        // 出現してプレイヤーから見えないまま寿命を終えることがあるため、キャンバス範囲内に収める。
+        const spawnX = Math.min(canvas.width - 20, Math.max(20, bx + Math.cos(ang) * dist));
+        const spawnY = Math.min(canvas.height - 20, Math.max(20, by + Math.sin(ang) * dist));
         bossDecoys.push({
-            x: bx + Math.cos(ang) * dist, y: by + Math.sin(ang) * dist,
-            vx: (Math.random() - 0.5) * 26, vy: (Math.random() - 0.5) * 18,
-            life: 2.4 + Math.random() * 1.0,
+            x: spawnX, y: spawnY,
+            // 出現角度からさらに外側へ流れる向きの初速にし、本体の陰へ戻ってしまわないようにする
+            // (この初速はupdate側のうろつき挙動が最初に発動するまでの短い間だけ使われる)。
+            vx: Math.cos(ang) * (20 + Math.random() * 20), vy: Math.sin(ang) * (16 + Math.random() * 16),
+            // 「独自に動き回る子分バチ」に見せるため、単に流れて消えるだけだった頃より長めに画面に留める。
+            life: 3.6 + Math.random() * 1.4,
             w: decoyW, h: decoyH,
             // 負荷軽減パス: 初弾までの猶予を少し延長(0.5~1.2s → 0.8~1.6s)し、デコイ由来弾の初速密度を下げる。
             shootT: 0.8 + Math.random() * 0.8
@@ -1770,28 +1796,6 @@ function draw(dt) {
         }
     });
 
-    // 女王バチのデコイ分身(bossDecoys)描画: 新規アートは用意せず、本体画像を縮小して使い回す。
-    // 寿命が残り少ない時は点滅させ、消える直前だと分かるようにする。
-    if (boss && bossDecoys.length) {
-        bossDecoys.forEach(d => {
-            if (d.life < 0.5 && Math.floor(Date.now()/80)%2===0) return;
-            ctx.save();
-            ctx.globalAlpha = 0.85;
-            ctx.translate(d.x, d.y);
-            if (boss.def.imgLoaded) {
-                const img = boss.def.outlineImg || boss.def.img;
-                ctx.imageSmoothingEnabled = true;
-                ctx.drawImage(img, -d.w/2, -d.h/2, d.w, d.h);
-                ctx.imageSmoothingEnabled = false;
-            } else {
-                const s = boss.def.sprite, scale = d.w / s.w;
-                drawSprite(s, -d.w/2, -d.h/2, scale, false);
-            }
-            ctx.restore();
-        });
-        ctx.globalAlpha = 1.0;
-    }
-
     if (boss) {
         ctx.save();
         ctx.translate(boss.x, boss.y);
@@ -1808,6 +1812,29 @@ function draw(dt) {
         // 破壊済み武装パーツの暗いオーバーレイ描画は廃止(影のようにしか見えず逆効果というプレイテスト判定のため)。
         // 専用アートができるまでは、破壊後もそのパーツの元の見た目をそのまま表示する(HP管理・爆発演出・攻撃停止は維持)。
         ctx.restore();
+
+        // 女王バチのデコイ分身(bossDecoys)描画: 本体の描画より後(=手前)に描く。
+        // 本体が大型化した現在、本体の真下付近に分身が重なると本体に隠れて全く見えなくなるため、
+        // 本体より手前に描画することで、多少重なっても常に視認できるようにする。
+        if (bossDecoys.length) {
+            bossDecoys.forEach(d => {
+                if (d.life < 0.5 && Math.floor(Date.now()/80)%2===0) return;
+                ctx.save();
+                ctx.globalAlpha = 0.85;
+                ctx.translate(d.x, d.y);
+                if (boss.def.imgLoaded) {
+                    const img = boss.def.outlineImg || boss.def.img;
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.drawImage(img, -d.w/2, -d.h/2, d.w, d.h);
+                    ctx.imageSmoothingEnabled = false;
+                } else {
+                    const s = boss.def.sprite, scale = d.w / s.w;
+                    drawSprite(s, -d.w/2, -d.h/2, scale, false);
+                }
+                ctx.restore();
+            });
+            ctx.globalAlpha = 1.0;
+        }
 
         if (boss.state === "entering") {
             // CAUTION警告バナー(点滅・画像素材なしでcanvas描画のみ)
