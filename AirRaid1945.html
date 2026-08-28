@@ -148,8 +148,8 @@ const SHIPS = [
         ], { b:"#2b5fd6", h:"#6ea8ff", s:"#123a8a", g:"#0a1a33", c:"#a8ecff", w:"#b9c6d8", u:"#e6eefc", r:"#ff3b3b", m:"#ffe14d", p:"#333333" })
     },
     {
-        id: 1, name: "コメット", desc: "高速連射型", subWeapon: "laser", imgSrc: "assets/ships/ship_comet.png",
-        speed: 2.6, power: 1, bombPower: 1, shotInterval: 150, bulletSpeed: 780,
+        id: 1, name: "コメット", desc: "高速連射型", subWeapon: "rapidVulcan", imgSrc: "assets/ships/ship_comet.png",
+        speed: 2.6, power: 1, bombPower: 1, shotInterval: 130, bulletSpeed: 780,
         sprite: buildSprite([
             "p.........",
             "bb........",
@@ -265,9 +265,9 @@ const ENEMY_DEFS = {
     heli_b:       { imgSrc: "assets/enemies/unit2_heli_b.png",       spriteKey: "heli",       kind: "air",    move: "heli",             shoot: "aimed",   hp: 3, pts: 100, size: 48 },
     tank_a:       { imgSrc: "assets/enemies/unit1_tank_a.png",       spriteKey: "tank",       kind: "ground", move: "groundSlow",       shoot: "fighter", hp: 4, pts: 120, size: 50 },
     tank_b:       { imgSrc: "assets/enemies/unit1_tank_b.png",       spriteKey: "tank",       kind: "ground", move: "groundSlow",       shoot: "fighter", hp: 4, pts: 120, size: 50 },
-    turret_a:     { imgSrc: "assets/enemies/unit2_turret_a.png",     spriteKey: "turret",     kind: "ground", move: "turret",           shoot: "aimed",   hp: 3, pts: 80,  size: 46 },
-    turret_b:     { imgSrc: "assets/enemies/unit2_turret_b.png",     spriteKey: "turret",     kind: "ground", move: "turret",           shoot: "aimed",   hp: 3, pts: 80,  size: 46 },
-    turret_c:     { imgSrc: "assets/enemies/unit2_turret_c.png",     spriteKey: "turret",     kind: "ground", move: "turret",           shoot: "aimed",   hp: 3, pts: 80,  size: 46 },
+    turret_a:     { imgSrc: "assets/enemies/unit2_turret_a.png",     spriteKey: "turret",     kind: "ground", move: "turret",           shoot: "directional",   hp: 3, pts: 80,  size: 46 },
+    turret_b:     { imgSrc: "assets/enemies/unit2_turret_b.png",     spriteKey: "turret",     kind: "ground", move: "turret",           shoot: "directional",   hp: 3, pts: 80,  size: 46 },
+    turret_c:     { imgSrc: "assets/enemies/unit2_turret_c.png",     spriteKey: "turret",     kind: "ground", move: "turret",           shoot: "directional",   hp: 3, pts: 80,  size: 46 },
     battleship_a: { imgSrc: "assets/enemies/unit1_battleship_a.png", spriteKey: "battleship", kind: "ground", move: "battleshipDrift", shoot: "bomber",  hp: 8, pts: 220, size: 80 },
     battleship_b: { imgSrc: "assets/enemies/unit1_battleship_b.png", spriteKey: "battleship", kind: "ground", move: "battleshipDrift", shoot: "bomber",  hp: 8, pts: 220, size: 80 }
 };
@@ -337,7 +337,7 @@ const BOSS_TEMPLATE = [
 // それ以外(定義に含まれない領域)は完全ノーコリジョンの装飾部分として扱う。
 const BOSSES = [
     { name: "海竜改", scale: 1.0, hpMul: 1.0, imgSrc: "assets/bosses/boss_seadragon_v2_full.png",
-      entranceType: "riseFlip", heightRatio: 0.36,
+      entranceType: "riseFlip", heightRatio: 0.46,
       hitboxDef: {
           core: { cx: 0, cy: 0.02, w: 0.34, h: 0.88 },
           weapons: [
@@ -347,7 +347,7 @@ const BOSSES = [
       },
       sprite: buildSprite(BOSS_TEMPLATE, { b:"#2f6e6e", h:"#7fd9d9", s:"#123333", g:"#0a1e1e", c:"#aef2ff", w:"#4a9a9a", t:"#ffe14d", r:"#ff5555", p:"#222222" }) },
     { name: "陸戦重爆", scale: 1.12, hpMul: 1.35, imgSrc: "assets/bosses/boss_whitetiger_v1_full.png",
-      entranceType: "driveIn", heightRatio: 0.34,
+      entranceType: "driveIn", heightRatio: 0.44,
       hitboxDef: {
           core: { cx: 0, cy: 0.05, w: 0.30, h: 0.78 },
           weapons: [
@@ -358,7 +358,7 @@ const BOSSES = [
       },
       sprite: buildSprite(BOSS_TEMPLATE, { b:"#5a6b2e", h:"#a8c060", s:"#232a10", g:"#141a08", c:"#e8ffb0", w:"#7a8a3e", t:"#ffe14d", r:"#ff5555", p:"#222222" }) },
     { name: "要塞戦闘機", scale: 1.28, hpMul: 1.25, imgSrc: "assets/bosses/boss_queenbee_v1_full.png",
-      entranceType: "fadeIn", heightRatio: 0.32,
+      entranceType: "fadeIn", heightRatio: 0.48,
       hitboxDef: {
           // 女王バチは翼(装飾/ノーコリジョン)を明確に除外しつつも、ダッシュ&ホバーで動き回る本体を
           // 現実的に狙えるよう、coreの帯を0.22→0.30に拡幅(翼はもっと外側まで伸びているため誤って含まれない)。
@@ -460,6 +460,7 @@ function isHardMode() { return loopNum >= 2; }
 function addScore(n) { score += Math.floor(n * (isHardMode() ? 2 : 1)); }
 let selectedShipIdx = 0;
 let enemies = [], enemyBullets = [], items = [], particles = [], boss = null, groundDecor = [];
+let bossDecoys = []; // 女王バチ専用の分身(デコイ)。boss本体とは別に自前のupdate/drawで扱う軽量オブジェクト配列。
 let explosionAnims = []; // 爆発スプライトアニメーションのインスタンス配列: { x, y, frame, t, size }
 let shake = 0, comboCount = 0, comboTimer = 0, spGauge = 0, bombStock = 3, bombFlashT = 0;
 let spawnTimer = 0, stageTimer = 0, stageEnemiesLeft = 0, bossPhase = 1, scrollY = 0;
@@ -670,7 +671,7 @@ function drawBackground(dt) {
 // ============ ウェーブ制御 ============
 const STAGE_LENGTH = 32; // 撃破必要体数(ボス出現までの目安)
 function initStage() {
-    enemies = []; enemyBullets = []; items = []; boss = null;
+    enemies = []; enemyBullets = []; items = []; boss = null; bossDecoys = [];
     document.getElementById("boss-hp-container").style.display = "none";
     document.getElementById("stage").innerText = stageNum + (isHardMode() ? "-B" : "");
     stageTimer = 0; spawnTimer = 1; stageEnemiesLeft = STAGE_LENGTH + stageNum*6;
@@ -733,6 +734,19 @@ function makeEnemy(type, x, y, zigDir=1) {
         e.vy = scrollSpd;
         if (def.move === "battleshipDrift") e.dir = Math.random() < 0.5 ? -1 : 1;
     }
+    if (def.move === "turret") {
+        // 据え置き砲台の固定向き(facingAngle, ラジアン)。回転規約は他の敵と同じで、
+        // 0=生アートのまま(上/自機と逆向き)、Math.PI=180度回転(下/自機側)。
+        // スポーンx位置(画面内の左寄り/中央/右寄り)に応じて狙いを振り、
+        // 「画面中央に向けて斜めに構える」ような配置にすることで、砲台ごとに違う弧をカバーしているように見せる。
+        // さらに±の乱数ジッターを加えて、同じスロットでも毎回まったく同じ向きにはならないようにする。
+        const half = canvas.width / 2;
+        let baseAngle;
+        if (x < half - 40) baseAngle = Math.PI - 0.6;      // 画面左寄り: 右下(中央側)へ向けて構える
+        else if (x > half + 40) baseAngle = Math.PI + 0.6; // 画面右寄り: 左下(中央側)へ向けて構える
+        else baseAngle = Math.PI;                          // 画面中央付近: 真下
+        e.facingAngle = baseAngle + (Math.random() - 0.5) * 0.3;
+    }
     return e;
 }
 
@@ -793,6 +807,10 @@ function spawnBoss() {
         boss.x = boss.driveSide < 0 ? -boss.w : canvas.width + boss.w;
         boss.y = 110;
         boss.targetX = 200;
+        // 白虎の生アートは砲塔(gunArm)が上半身側を向いており、無回転だと自機と逆を向く。
+        // 以前は到着(battle開始)時にだけ180度回転させていたが、プレイテストで「上を向いたまま
+        // 入場する意味がない」と指摘されたため、ドライブイン開始の時点から向きを確定させる。
+        boss.rotation = Math.PI;
     } else { // fadeIn (クイーンバチ): 通常の敵同様に上から進入
         boss.x = 200;
         boss.y = -boss.h;
@@ -935,26 +953,32 @@ function fireWeapon(now) {
     }
 }
 
-// 機体固有のサブ武装(武装Lvと連動して自動強化。Strikers 1945のサーチバルカン/オートレーザー相当)
+// 機体固有のサブ武装(武装Lvと連動して自動強化。Strikers 1945のサーチバルカン相当)
+// ライトニング=search(ホーミング・少数精鋭、群れにも当てやすい)
+// コメット=rapidVulcan(貫通・誘導なしの実弾ツインバルカン。サーチバルカンより高頻度・広間隔で、
+//   「命中精度より弾幕の量と広さ」で押すコメットの高速連射型アイデンティティを担う)
 function fireSubWeapon(now) {
     const lv = player.weaponLv;
     if (lv < 2 || !player.ship.subWeapon) return;
-    const interval = Math.max(220, 620 - lv*80);
-    if (now - player.lastSubShot <= interval) return;
-    player.lastSubShot = now;
     const cx = player.x + player.w/2 - 2;
     const bp = player.ship.power;
     if (player.ship.subWeapon === "search") {
+        const interval = Math.max(220, 620 - lv*80);
+        if (now - player.lastSubShot <= interval) return;
+        player.lastSubShot = now;
         const count = lv >= 4 ? 2 : 1;
         for (let i=0; i<count; i++) {
             const side = i===0 ? -1 : 1;
             player.bullets.push({ x: cx + side*8, y: player.y+6, w: 3, h: 8, vx: side*40, dmg: bp*0.5, color: "#7fffd4", homing: true, turnRate: 3.2 });
         }
-    } else if (player.ship.subWeapon === "laser") {
-        const count = lv >= 4 ? 2 : 1;
+    } else if (player.ship.subWeapon === "rapidVulcan") {
+        const interval = Math.max(140, 480 - lv*65);
+        if (now - player.lastSubShot <= interval) return;
+        player.lastSubShot = now;
+        const count = lv >= 4 ? 3 : 2;
         for (let i=0; i<count; i++) {
-            const side = count===1 ? 0 : (i===0?-1:1);
-            player.bullets.push({ x: cx + side*9, y: player.y, w: 3, h: 24, vx: 0, dmg: bp*0.7, color: "#ff66ff", pierce: true, hitsLeft: 4 });
+            const side = count === 2 ? (i===0 ? -1 : 1) : (i - 1); // count2:±1 / count3:-1,0,1
+            player.bullets.push({ x: cx + side*13, y: player.y+2, w: 3, h: 10, vx: side*80, dmg: bp*0.5, color: "#ffe14d" });
         }
     }
 }
@@ -996,6 +1020,7 @@ function defeatBoss() {
     addScore(3000 + stageNum*500); comboCount = 0; shake = 45;
     sfx.explode();
     boss = null;
+    bossDecoys = []; // 本体撃破と同時に残存デコイも消す(本体のいない分身だけが弾を撃ち続けるのを防ぐ)
     // ボス撃破と同フレームのupdate()内でボス出現条件(敵ゼロ)を再判定してしまい、
     // 同じボスが即座に再スポーンする「ゴーストボス」を防ぐため、
     // 遷移演出の間は必ずgameStateをPLAYから外しておく。
@@ -1028,7 +1053,7 @@ function update(dt, now) {
     const buffs = [];
     if (player.weaponLv >= 2) buffs.push("WEAPON Lv" + player.weaponLv);
     if (player.weaponLv >= 2 && player.ship.subWeapon) {
-        buffs.push(player.ship.subWeapon === "search" ? "SEARCH VULCAN" : "AUTO LASER");
+        buffs.push(player.ship.subWeapon === "search" ? "SEARCH VULCAN" : "RAPID VULCAN");
     }
     document.getElementById("buff-status").innerText = buffs.join(" / ");
 
@@ -1094,6 +1119,7 @@ function update(dt, now) {
             if (hitPart) continue;
         }
 
+        let hitEnemy = false;
         for (let j = enemies.length - 1; j >= 0; j--) {
             let e = enemies[j];
             if (b.x > e.x-e.w/2 && b.x < e.x+e.w/2 && b.y > e.y-e.h/2 && b.y < e.y+e.h/2) {
@@ -1104,7 +1130,23 @@ function update(dt, now) {
                     killEnemy(e, j);
                     if (spGauge >= 100 && player.weaponLv < 3) { }
                 } else sfx.bossHit();
+                hitEnemy = true;
                 break;
+            }
+        }
+        // 女王バチのデコイ分身(bossDecoys)への被弾判定: 1発で撃破でき、小さな爆発+得点ボーナスで消える。
+        // 通常のenemies配列とは別管理のため、専用の判定をここに追加する(既にenemyに当たっていれば二重判定しない)。
+        if (!hitEnemy) {
+            for (let k = bossDecoys.length - 1; k >= 0; k--) {
+                const d = bossDecoys[k];
+                if (b.x > d.x-d.w/2 && b.x < d.x+d.w/2 && b.y > d.y-d.h/2 && b.y < d.y+d.h/2) {
+                    if (!b.pierce || --b.hitsLeft <= 0) player.bullets.splice(i, 1);
+                    createExplosion(d.x, d.y, "#ffd166", 10);
+                    bossDecoys.splice(k, 1);
+                    addScore(150);
+                    sfx.bossHit();
+                    break;
+                }
             }
         }
     }
@@ -1191,8 +1233,16 @@ function update(dt, now) {
                 e.shootT = 1.8 + Math.random()*0.6 - stageNum*0.05 + cooldownBonus;
                 enemyBullets.push({ x: e.x, y: e.y, w: 4, h: 8, vx: -70, vy: 140 });
                 enemyBullets.push({ x: e.x, y: e.y, w: 4, h: 8, vx: 70, vy: 140 });
+            } else if (e.shoot === "directional") {
+                // directional: 据え置き砲台(turret_a/b/c)専用。自機を狙わず、スポーン時に決めた
+                // facingAngle(向き)そのままの方向へ撃つ。回転規約はdraw()のtranslate/rotateと同じ
+                // (0=生アートのまま=上, Math.PI=180度回転=下)なので、forward = (sinθ, -cosθ)。
+                e.shootT = 1.7 + Math.random()*1.2 - stageNum*0.08 + cooldownBonus;
+                const speed = 130;
+                const ang = e.facingAngle || Math.PI;
+                enemyBullets.push({ x: e.x, y: e.y, w: 4, h: 8, vx: Math.sin(ang)*speed, vy: -Math.cos(ang)*speed });
             } else {
-                // aimed: 弱めの狙い撃ち(速度を抑えて回避しやすく)
+                // aimed: 弱めの狙い撃ち(速度を抑えて回避しやすく)。turret系以外(zigzag/heli)専用。
                 e.shootT = 1.7 + Math.random()*1.2 - stageNum*0.08 + cooldownBonus;
                 const dx = (player.x+player.w/2) - e.x, dy = (player.y - e.y);
                 const len = Math.max(1, Math.hypot(dx,dy));
@@ -1234,6 +1284,22 @@ function update(dt, now) {
         if (eb.x-eb.w/2 < player.x+player.w && eb.x+eb.w/2 > player.x && eb.y-eb.h/2 < player.y+player.h && eb.y+eb.h/2 > player.y) {
             enemyBullets.splice(i, 1);
             damagePlayer(now);
+        }
+    }
+
+    // 女王バチのデコイ分身(bossDecoys)の更新: 寿命が尽きたら消滅、ゆっくり漂い、たまに単発弾を撃つ。
+    // 自機との接触判定はあえて付けていない(本体の当たり判定と混同されるのを避けるための判断。詳細はspawnBossDecoysのコメント参照)。
+    for (let i = bossDecoys.length-1; i>=0; i--) {
+        const d = bossDecoys[i];
+        d.life -= dt;
+        if (d.life <= 0) { bossDecoys.splice(i, 1); continue; }
+        d.x += d.vx * dt; d.y += d.vy * dt;
+        d.shootT -= dt;
+        if (d.shootT <= 0 && boss && boss.state === "battle") {
+            d.shootT = 1.0 + Math.random()*0.7;
+            const dx = (player.x+player.w/2) - d.x, dy = player.y - d.y;
+            const len = Math.max(1, Math.hypot(dx,dy));
+            enemyBullets.push({ x: d.x, y: d.y, w: 5, h: 10, vx: dx/len*90, vy: dy/len*90, color: "#ffd166" });
         }
     }
 
@@ -1323,9 +1389,18 @@ function bossAttackSeaDragon(bx, by) {
             onFire: () => enemyBullets.push({ x: o.x, y: o.y, w: 6, h: 14, vx, vy })
         });
     };
-    origins.forEach(o => fireFrom(o, 0, 190));
-    if (bossPhase >= 2) origins.forEach(o => fireFrom(o, (Math.random()-0.5)*70, 205)); // phase2: 各砲塔から追加の斜め弾
-    if (bossPhase >= 3) fireFrom({ x: bx, y: by }, (player.x-bx)*0.4, 220); // phase3: さらに本体中心から自機狙いを追加
+    // 海竜改は「速射・弾速」で他ボスと差別化するアーキタイプ。プレイテストで弱いと判定されたため、
+    // 各フェーズの弾速を約+18~20%引き上げ、phase2/3では弾数も1発ずつ追加して密度を上げている
+    // (White Tiger/Queen Beeの既存弾速(105~230程度)と比べても頭ひとつ速い程度に留め、理不尽にはしない)。
+    origins.forEach(o => fireFrom(o, 0, 225));
+    if (bossPhase >= 2) origins.forEach(o => {
+        fireFrom(o, (Math.random()-0.5)*70, 245); // phase2: 各砲塔から追加の斜め弾
+        fireFrom(o, (Math.random()-0.5)*70, 245); // phase2: 弾数増量のためもう1発追加
+    });
+    if (bossPhase >= 3) {
+        fireFrom({ x: bx, y: by }, (player.x-bx)*0.4, 265); // phase3: 本体中心から自機狙いを追加
+        fireFrom({ x: bx, y: by }, (player.x-bx)*0.4*-0.6, 265); // phase3: 弾数増量のため逆側にも追加弾
+    }
 }
 
 // 陸戦重爆(tank archetype, stage2): 「重戦車の緩急」型。避けやすいが重い榴弾+gunArmからの速い機関砲連射
@@ -1351,8 +1426,9 @@ function bossAttackWhiteTiger(bx, by) {
     if (bossPhase >= 2 && Math.random() < 0.5) {
         const tx = Math.max(30, Math.min(canvas.width-30, player.x + (Math.random()-0.5)*60));
         const ty = Math.min(canvas.height - 60, 260 + Math.random()*80);
+        // プレイテストで「予告が見えづらく不意打ちに感じる」との指摘を受け、警告時間を0.7s→0.85sへ延長。
         boss.telegraphs.push({
-            t: 0.7, total: 0.7, kind: "barrage", x: tx, y: ty,
+            t: 0.85, total: 0.85, kind: "barrage", x: tx, y: ty,
             onFire: () => {
                 createExplosion(tx, ty, "#ff8040", 14);
                 for (let a=-2; a<=2; a++) enemyBullets.push({ x: tx, y: ty, w: 6, h: 6, vx: a*32, vy: 60, color: "#f33" });
@@ -1382,6 +1458,67 @@ function bossAttackQueenBee(bx, by) {
     if (stinger && !stinger.destroyed && bossPhase >= 3) {
         const r = getBossRegionRect(boss, stinger);
         enemyBullets.push({ x: r.x+r.w/2, y: r.y+r.h/2, w: 6, h: 14, vx: (player.x-bx)*0.3, vy: 230, color: "#fff" });
+    }
+
+    // 追加攻撃(1): 「花びらが舞い落ちる」ような、全周に少しずつ回転しながら広がるローゼット弾幕。
+    // メインの攻撃間隔(interval)とは別の長めのクールダウン(boss.timer基準)で発動する。
+    // このbossAttackQueenBee自体が「ダッシュ中は呼ばれない」呼び出し元(updateBoss)経由でしか
+    // 呼ばれないため、既存の「ダッシュ中は攻撃しない」ルールをそのまま継承する。
+    if (bossPhase >= 2) {
+        if (boss.lastRosetteTime === undefined) boss.lastRosetteTime = boss.timer;
+        const rosetteCooldown = bossPhase >= 3 ? 4.5 : 6.0;
+        if (boss.timer - boss.lastRosetteTime > rosetteCooldown) {
+            boss.lastRosetteTime = boss.timer;
+            queenBeeRosetteBurst(bx, by);
+        }
+    }
+}
+
+// 追加攻撃(1)の実体: 円周上に等間隔の弾をまとめて配置するのではなく、1発ずつ少し時間差(約0.035秒間隔)を
+// 付けてtelegraphs経由で発射する。女王バチはホバー中ほぼ静止しているため、発射順に沿って弾の始点が
+// わずかに違う角度を向くことになり、「平面的な即時リング」ではなく回転しながら広がる渦・ロゼット状に見える。
+function queenBeeRosetteBurst(bx, by) {
+    const count = 14;
+    const speed = bossPhase >= 3 ? 125 : 105;
+    const startAngle = Math.random() * Math.PI * 2; // 毎回向きを変えて単調にしない
+    for (let i = 0; i < count; i++) {
+        const angle = startAngle + (i / count) * Math.PI * 2;
+        boss.telegraphs.push({
+            t: 0.035 * i, total: 0.14, kind: "muzzle", x: bx, y: by,
+            onFire: () => enemyBullets.push({
+                x: bx, y: by, w: 6, h: 6,
+                vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, color: "#ffd166"
+            })
+        });
+    }
+}
+
+// 追加攻撃(2): デコイ(分身)の生成。新規アートは追加せず、女王バチ本体の画像を縮小して再利用する。
+// bossDecoysは通常のenemies配列とは別の専用配列(ENEMY_DEFS前提の当たり判定を持たないため)で、
+// update()/draw()側にそれぞれ専用の更新・描画ブロックを追加して扱う。
+// 【判定メモ】プレイヤー弾で破壊可能(小得点ボーナス)にしている。分身が単に画面を塞ぐだけの障害物だと
+// 「弾を増やす」というプレイテスト要望の意図(デコイ自体も撃たれる的として機能する)に薄くなるため、
+// 「壊せるが本体ほど硬くはない(1発で消える)」小さな的として実装した。自機との接触判定は付けていない
+// (本体の当たり判定と混同されるのを避けるため、視覚的な分身+射撃源としてのみ機能させる判断)。
+function spawnBossDecoys(bx, by) {
+    const count = 2 + (Math.random() < 0.5 ? 0 : 1); // 2~3体
+    // プレイテストで「分身体は雑魚敵くらいの小ささにして、女王バチ本体が大きく目立つように」と指摘されたため、
+    // ボスの拡大(heightRatio引き上げ)に連動してサイズが増えてしまう「本体比%」指定はやめ、
+    // 雑魚(ENEMY_DEFSのsize値、40~50px程度)と同水準の固定サイズにする。
+    const DECOY_SIZE = 40;
+    const aspect = (boss.def.imgLoaded && boss.def.img.naturalWidth) ? (boss.def.img.naturalWidth / boss.def.img.naturalHeight) : (boss.w / boss.h);
+    const decoyW = aspect >= 1 ? DECOY_SIZE : DECOY_SIZE * aspect;
+    const decoyH = aspect >= 1 ? DECOY_SIZE / aspect : DECOY_SIZE;
+    for (let i = 0; i < count; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const dist = 45 + Math.random() * 35;
+        bossDecoys.push({
+            x: bx + Math.cos(ang) * dist, y: by + Math.sin(ang) * dist,
+            vx: (Math.random() - 0.5) * 26, vy: (Math.random() - 0.5) * 18,
+            life: 2.4 + Math.random() * 1.0,
+            w: decoyW, h: decoyH,
+            shootT: 0.5 + Math.random() * 0.7
+        });
     }
 }
 
@@ -1418,9 +1555,7 @@ function updateBossEntrance(dt) {
         }
         if ((dir > 0 && boss.x >= boss.targetX) || (dir < 0 && boss.x <= boss.targetX)) {
             boss.x = boss.targetX;
-            // 白虎の生アートは砲塔(gunArm)が上半身側を向いており、無回転のままだと戦闘中ずっと自機と逆を向いてしまう。
-            // 到着(battle開始)と同時に180度回転させて自機側(下)を向かせる。
-            boss.rotation = Math.PI;
+            // rotationはspawnBoss()で入場開始時から既にMath.PIに設定済み(ここでの再設定は不要)。
             boss.state = "battle";
         }
     } else { // fadeIn (クイーンバチ): 通常の敵と同様に上から進入するだけ
@@ -1484,6 +1619,18 @@ function updateBoss(dt, now) {
 
     // 重要ルール: 女王バチはダッシュ中(移動中)は攻撃しない。ホバー(静止)中のみ攻撃可能。
     if (boss.def.entranceType === "fadeIn" && boss.roamState !== "hovering") return;
+
+    // 女王バチ専用の追加ギミック(デコイ分身の定期スポーン): メインの攻撃間隔(attackTimer/interval)とは
+    // 別のクールダウン(decoyTimer)で管理する。この行に到達するのは「ダッシュ中でない」場合のみなので、
+    // 上の重要ルールと同じダッシュ中封じ込めが自然に適用される。
+    if (boss.def.entranceType === "fadeIn" && bossPhase >= 2) {
+        if (boss.decoyTimer === undefined) boss.decoyTimer = 3 + Math.random()*2;
+        boss.decoyTimer -= dt;
+        if (boss.decoyTimer <= 0) {
+            spawnBossDecoys(boss.x, boss.y);
+            boss.decoyTimer = 6.5 + Math.random()*2.5;
+        }
+    }
 
     const interval = bossPhase === 1 ? 1.0 : (bossPhase === 2 ? 0.65 : 0.4);
     if (boss.attackTimer > interval) {
@@ -1560,13 +1707,51 @@ function draw(dt) {
         if (def.imgLoaded) {
             const img = def.outlineImg || def.img;
             ctx.imageSmoothingEnabled = true;
-            ctx.drawImage(img, e.x - e.w/2, e.y - e.h/2, e.w, e.h);
+            if (def.kind === "ground" && def.move === "turret") {
+                // 据え置き砲台(turret_a/b/c)は、他の敵と違って一律180度回転ではなく、
+                // スポーン時に決めたfacingAngle(向き)でそのまま回転させて描画する。
+                // 弾もこのfacingAngleと同じ方向へ飛ぶ(shoot==="directional")ので、見た目と着弾方向が一致する。
+                ctx.save();
+                ctx.translate(e.x, e.y);
+                ctx.rotate(e.facingAngle || Math.PI);
+                ctx.drawImage(img, -e.w/2, -e.h/2, e.w, e.h);
+                ctx.restore();
+            } else {
+                // 通常の敵機/艦艇は上から自機に向かって降りてくるため、機首が下(自機側)を向くよう180度回転して描画する。
+                ctx.save();
+                ctx.translate(e.x, e.y);
+                ctx.rotate(Math.PI);
+                ctx.drawImage(img, -e.w/2, -e.h/2, e.w, e.h);
+                ctx.restore();
+            }
             ctx.imageSmoothingEnabled = false;
         } else {
             const s = ENEMY_SPRITES[def.spriteKey], scale = e.w / s.w;
             drawSprite(s, e.x - e.w/2, e.y - e.h/2, scale, false);
         }
     });
+
+    // 女王バチのデコイ分身(bossDecoys)描画: 新規アートは用意せず、本体画像を縮小して使い回す。
+    // 寿命が残り少ない時は点滅させ、消える直前だと分かるようにする。
+    if (boss && bossDecoys.length) {
+        bossDecoys.forEach(d => {
+            if (d.life < 0.5 && Math.floor(Date.now()/80)%2===0) return;
+            ctx.save();
+            ctx.globalAlpha = 0.85;
+            ctx.translate(d.x, d.y);
+            if (boss.def.imgLoaded) {
+                const img = boss.def.outlineImg || boss.def.img;
+                ctx.imageSmoothingEnabled = true;
+                ctx.drawImage(img, -d.w/2, -d.h/2, d.w, d.h);
+                ctx.imageSmoothingEnabled = false;
+            } else {
+                const s = boss.def.sprite, scale = d.w / s.w;
+                drawSprite(s, -d.w/2, -d.h/2, scale, false);
+            }
+            ctx.restore();
+        });
+        ctx.globalAlpha = 1.0;
+    }
 
     if (boss) {
         ctx.save();
@@ -1623,9 +1808,19 @@ function draw(dt) {
                         ctx.beginPath(); ctx.arc(tg.x, tg.y, 3 + p*5, 0, Math.PI*2); ctx.fill();
                     }
                 } else if (tg.kind === "barrage") {
-                    ctx.strokeStyle = `rgba(255,90,40,${0.5 + 0.4*Math.sin(p*24)})`;
-                    ctx.lineWidth = 2;
-                    ctx.beginPath(); ctx.arc(tg.x, tg.y, 8 + p*28, 0, Math.PI*2); ctx.stroke();
+                    // プレイテストで「予告リングが細く/小さく見づらい、不意打ちに感じる」との指摘を受けて再設計。
+                    // (1)最初から視認できる大きさで出現し細いリングから育てない、(2)着弾エリアそのものを
+                    // 半透明で塗って「どこに落ちるか」を面で示す、(3)着弾が近づく(pが1に近づく)ほど
+                    // 塗り濃度・縁取りの太さ・明滅速度が跳ね上がる、の3点で「もうすぐ来る」を強調している。
+                    const urgency = p*p; // 終盤に向けて急激に強まる緊迫感カーブ
+                    const r = 24 + p*20; // 24→44: 小さすぎる初期リングをやめ、最初から視認しやすいサイズに
+                    const flicker = 0.5 + 0.5*Math.sin(p*(10 + p*26)); // pが進むほど明滅が速くなる
+                    ctx.beginPath(); ctx.arc(tg.x, tg.y, r, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(255,60,20,${0.14 + 0.30*urgency + 0.16*flicker})`;
+                    ctx.fill();
+                    ctx.strokeStyle = `rgba(255,160,60,${0.65 + 0.35*flicker})`;
+                    ctx.lineWidth = 2 + urgency*2.5;
+                    ctx.stroke();
                 }
             });
         }
