@@ -6,7 +6,10 @@
     <title>SKY RAIDERS: 1945 STYLE</title>
     <style>
         html, body { background: #000; color: #fff; text-align: center; font-family: 'Courier New', sans-serif; overflow: hidden; touch-action: none; margin: 0; width: 100%; height: 100%; -webkit-user-select: none; }
-        #game-container { display: flex; flex-direction: column; height: 100vh; position: relative; }
+        /* 100vhはiOS/Androidでブラウザ側UI(アドレスバー等)の扱いが違い、機種によって実効の高さがズレて
+           Canvasの見た目サイズが変わって見える原因になる。100dvh(対応ブラウザのみ)で実際の表示領域に
+           追従させ、非対応ブラウザ向けに100vhをフォールバックとして先に書いておく。 */
+        #game-container { display: flex; flex-direction: column; height: 100vh; height: 100dvh; position: relative; }
         .ui-top { height: 74px; display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center; background: rgba(10, 10, 20, 0.9); color: #0f0; font-size: 10px; border-bottom: 2px solid #0af; padding-top: env(safe-area-inset-top); z-index: 10; }
         #screen-area { position: relative; flex-grow: 1; width: 100%; background: #000; overflow: hidden; }
         canvas { display: block; margin: 0 auto; width: 100%; height: 100%; object-fit: contain; }
@@ -63,6 +66,7 @@
         <div id="sp-gauge-container"><div id="sp-gauge-fill"></div></div>
 
         <button id="pause-btn" onclick="togglePause()">II</button>
+        <div id="fps-counter" style="position:absolute; top:8px; left:8px; color:#0f0; font-size:10px; opacity:0.6; z-index:15; pointer-events:none;">FPS: --</div>
 
         <div id="start-screen" class="overlay">
             <h1 style="color:#0af; margin:0; font-size: 28px; text-shadow: 0 0 20px #0af;">SKY RAIDERS</h1>
@@ -834,7 +838,14 @@ function showBanner(id, text) {
 // ============ 操作 ============
 let lastTouchX = null;
 let lastTouchY = null;
-window.addEventListener("touchstart", e => { ensureAudio(); if (e.target.closest("#bomb-btn,#pause-btn,button")) return; lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY; }, {passive: false});
+window.addEventListener("touchstart", e => {
+    ensureAudio();
+    // ボム/ポーズボタン上でのタッチ開始時、lastTouchX/Yが直前のドラッグ位置のまま残ってしまい、
+    // 次に別の場所で新しくドラッグを始めた瞬間に古い座標との差分(dx/dy)が発生して自機が瞬間移動する不具合があった。
+    // ボタン操作時は必ずnullへ戻し、次のtouchmoveが「今回の開始点」から正しく計算されるようにする。
+    if (e.target.closest("#bomb-btn,#pause-btn,button")) { lastTouchX = null; lastTouchY = null; return; }
+    lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
+}, {passive: false});
 window.addEventListener("touchmove", e => {
     if (gameState !== "PLAY" || lastTouchX === null) return;
     const rect = canvas.getBoundingClientRect();
@@ -881,6 +892,7 @@ function useBomb() {
     updateBombUI();
     sfx.bomb();
     shake = 35; bombFlashT = 0.4;
+    player.invuln = Math.max(player.invuln, 1.0); // ボム発動中は短時間無敵にし、緊急回避として機能させる
     enemyBullets = [];
     const dmg = 6 * player.ship.bombPower;
     for (let i=enemies.length-1;i>=0;i--) {
@@ -994,12 +1006,14 @@ function damagePlayer(now) {
 }
 
 function killEnemy(e, idx) {
-    createExplosion(e.x+e.w/2, e.y+e.h/2, "#ffa040", 10);
+    // e.x/e.yは既に敵の中心座標(makeEnemy/衝突判定と同じ基準)なので、+e.w/2・+e.h/2を足すと
+    // 右下にずれる(戦艦sizeでは約40pxのズレ)。中心そのものを使う。
+    createExplosion(e.x, e.y, "#ffa040", 10);
     enemies.splice(idx, 1);
     comboCount++; comboTimer = 0;
     let pts = Math.floor(e.pts * (1 + comboCount * 0.08));
     addScore(pts);
-    spawnItem(e.x+e.w/2, e.y+e.h/2);
+    spawnItem(e.x, e.y);
     spGauge = Math.min(100, spGauge + 2);
     stageEnemiesLeft = Math.max(0, stageEnemiesLeft - 1);
 }
@@ -1016,7 +1030,9 @@ function checkBossPhase() {
 }
 
 function defeatBoss() {
-    createExplosion(boss.x + boss.w/2, boss.y + boss.h/2, "#ff8040", 50);
+    // boss.x/yは既にボスの中心座標(draw()のtranslateと同じ基準)なので、+boss.w/2・+boss.h/2を
+    // 足すと右下に大きくずれる(現在のサイズだと100px超)。killEnemyと同じ原因・同じ直し方。
+    createExplosion(boss.x, boss.y, "#ff8040", 50);
     addScore(3000 + stageNum*500); comboCount = 0; shake = 45;
     sfx.explode();
     boss = null;
@@ -1488,15 +1504,19 @@ function bossAttackQueenBee(bx, by) {
 // 付けてtelegraphs経由で発射する。女王バチはホバー中ほぼ静止しているため、発射順に沿って弾の始点が
 // わずかに違う角度を向くことになり、「平面的な即時リング」ではなく回転しながら広がる渦・ロゼット状に見える。
 function queenBeeRosetteBurst(bx, by) {
-    // 低スペック端末での「フリーズ」報告を受けた負荷軽減パス: 弾数を14→10に削減
-    // (渦・ロゼット状の見た目は保ちつつ、同時弾数のピークを抑える)。
-    const count = 10;
+    // フリーズの真因はこの弾数(以前は14→10に減らしていた)ではなく、下のtotal固定によるテレグラフの
+    // 例外バグだったと判明(第2版監査で特定・修正済み)。原因が直ったので演出優先の値(14発)に戻す。
+    const count = 14;
     const speed = bossPhase >= 3 ? 125 : 105;
     const startAngle = Math.random() * Math.PI * 2; // 毎回向きを変えて単調にしない
     for (let i = 0; i < count; i++) {
         const angle = startAngle + (i / count) * Math.PI * 2;
+        const delay = 0.035 * i;
         boss.telegraphs.push({
-            t: 0.035 * i, total: 0.14, kind: "muzzle", x: bx, y: by,
+            // total(演出の長さ)をdelay(発射までの待ち時間)より短く固定していたため、
+            // 後半の弾でt>totalとなりp(進行度)が負になって描画側で例外落ちしていた。
+            // totalは必ずdelay以上を確保する。
+            t: delay, total: Math.max(delay, 0.14), kind: "muzzle", x: bx, y: by,
             onFire: () => enemyBullets.push({
                 x: bx, y: by, w: 6, h: 6,
                 vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, color: "#ffd166"
@@ -1513,9 +1533,9 @@ function queenBeeRosetteBurst(bx, by) {
 // 「壊せるが本体ほど硬くはない(1発で消える)」小さな的として実装した。自機との接触判定は付けていない
 // (本体の当たり判定と混同されるのを避けるため、視覚的な分身+射撃源としてのみ機能させる判断)。
 function spawnBossDecoys(bx, by) {
-    // 低スペック端末での「フリーズ」報告を受けた負荷軽減パス: 2~3体だった生成数を2体固定に削減
-    // (デコイ自体も独立して弾を撃つため、体数が直接ピーク弾数に効いてくる)。
-    const count = 2;
+    // フリーズの真因はロゼット弾幕側のテレグラフ例外バグだったと判明(第2版監査で特定・修正済み)。
+    // 原因が直ったので演出優先の値(2~3体)に戻す。
+    const count = 2 + (Math.random() < 0.5 ? 0 : 1); // 2~3体
     // プレイテストで「分身体は雑魚敵くらいの小ささにして、女王バチ本体が大きく目立つように」と指摘されたため、
     // ボスの拡大(heightRatio引き上げ)に連動してサイズが増えてしまう「本体比%」指定はやめ、
     // 雑魚(ENEMY_DEFSのsize値、40~50px程度)と同水準の固定サイズにする。
@@ -1811,11 +1831,15 @@ function draw(dt) {
         // ワールド座標を直接使うため、ボスのtranslate/rotateブロックの外(restore後)で描く。
         if (boss.telegraphs) {
             boss.telegraphs.forEach(tg => {
-                const p = 1 - tg.t / tg.total;
+                // t>totalで登録されたテレグラフ(例: 発射までの遅延をtotalより長く取った場合)でも
+                // pが0~1の範囲を外れないようにクランプしておく(barrage側のurgency/flicker計算への保険にもなる)。
+                const p = Math.max(0, Math.min(1, 1 - tg.t / tg.total));
                 if (tg.kind === "muzzle") {
                     if (muzzleFlashFramesReady()) {
-                        // t/totalの進行度pを3フレームに割り付ける(0～1を3等分し、0→1→2と進む)
-                        const frameIdx = Math.min(MUZZLE_FLASH_FRAMES.length - 1, Math.floor(p * MUZZLE_FLASH_FRAMES.length));
+                        // t/totalの進行度pを3フレームに割り付ける(0～1を3等分し、0→1→2と進む)。
+                        // p<0(t>totalのテレグラフが登録された場合)でも配列外参照(負の添字→undefined→例外)に
+                        // ならないよう、常に0以上にクランプする(queenBeeRosetteBurstのフリーズ原因の修正)。
+                        const frameIdx = Math.max(0, Math.min(MUZZLE_FLASH_FRAMES.length - 1, Math.floor(p * MUZZLE_FLASH_FRAMES.length)));
                         const frame = MUZZLE_FLASH_FRAMES[frameIdx];
                         const muzzleSize = 16; // 銃口の閃光として一瞬光る程度の固定サイズ(既存の円演出の見た目規模を踏襲)
                         const aspect = frame.img.naturalWidth / frame.img.naturalHeight || 1;
@@ -1884,14 +1908,51 @@ function draw(dt) {
     ctx.restore();
 }
 
+// フリーズが「例外エラー」ではなく「処理落ちで実質止まって見える」パターンかどうかを切り分けるための
+// 簡易FPS表示。フリーズの瞬間にこの数値も一緒に固まっていれば処理落ちが濃厚、直前まで数値が動いていて
+// 突然消える/エラー画面に切り替わるなら別の原因、という判断材料になる。
+let fpsFrameCount = 0, fpsLastUpdate = 0, fpsDisplay = 0;
+function updateFpsCounter(timestamp) {
+    fpsFrameCount++;
+    if (timestamp - fpsLastUpdate >= 500) {
+        fpsDisplay = Math.round(fpsFrameCount * 1000 / (timestamp - fpsLastUpdate));
+        fpsFrameCount = 0;
+        fpsLastUpdate = timestamp;
+        const el = document.getElementById("fps-counter");
+        if (el) el.innerText = "FPS: " + fpsDisplay;
+    }
+}
+
 function gameLoop(timestamp) {
     if (gameState !== "PLAY" && gameState !== "STAGE_CLEAR_WAIT") return;
     let dt = (timestamp - lastTime) / 1000;
     if (dt > 0.1) dt = 0.1;
     lastTime = timestamp;
-    update(dt, timestamp);
-    draw(dt);
+    updateFpsCounter(timestamp);
+    // update()/draw()内で例外が起きると、それまでrequestAnimationFrameがただ止まるだけで
+    // プレイヤーからは「無言のフリーズ」にしか見えず、原因の手がかりが一切残らなかった。
+    // ここで捕まえて画面上にエラー内容を表示し、次回発生時に実際の原因を報告してもらえるようにする。
+    try {
+        update(dt, timestamp);
+        draw(dt);
+    } catch (err) {
+        showCrashOverlay(err);
+        return; // ループを再開しない(エラー表示を上書き描画で消さないため)
+    }
     requestAnimationFrame(gameLoop);
+}
+
+function showCrashOverlay(err) {
+    let el = document.getElementById("crash-overlay");
+    if (!el) {
+        el = document.createElement("div");
+        el.id = "crash-overlay";
+        el.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);color:#f55;font-family:monospace;font-size:11px;padding:16px;box-sizing:border-box;z-index:999;overflow-y:auto;white-space:pre-wrap;text-align:left;";
+        document.getElementById("screen-area").appendChild(el);
+    }
+    el.innerText = "エラーが発生しました。このままの画面をスクリーンショットして報告してください。\n\n"
+        + (err && err.message ? err.message : String(err)) + "\n\n"
+        + (err && err.stack ? err.stack : "(スタック情報なし)");
 }
 
 function endGame(cleared) {
