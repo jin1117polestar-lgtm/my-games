@@ -340,13 +340,16 @@ const BOSS_TEMPLATE = [
 // core=本体(自機接触即死・被弾でメインHPに直撃)、weapons=個別HPを持つ副パーツ(自機接触はグレイズのみ)、
 // それ以外(定義に含まれない領域)は完全ノーコリジョンの装飾部分として扱う。
 const BOSSES = [
-    { name: "海竜改", scale: 1.0, hpMul: 1.7, imgSrc: "assets/bosses/boss_seadragon_v2_full.png",
+    { name: "海竜改", scale: 1.0, widthMul: 1.18, hpMul: 1.7, imgSrc: "assets/bosses/boss_seadragon_v2_full.png",
       entranceType: "riseFlip", heightRatio: 0.80,
+      // 当たり判定を一から見直し(画像の透明余白をトリミング済みの実アート比率に基づいて再定義):
+      // 画像を横方向にピクセル解析した結果、中央の船体(core)は全高の9割強で幅は全体の4割程度、
+      // 左右に飛び出す砲塔列(turretL/R)は船体中間の縦6割程度の範囲で外側へ張り出している。
       hitboxDef: {
-          core: { cx: 0, cy: 0.02, w: 0.34, h: 0.88 },
+          core: { cx: 0, cy: 0.0, w: 0.42, h: 0.92 },
           weapons: [
-              { id: "turretL", cx: -0.34, cy: -0.05, w: 0.30, h: 0.55, maxHp: 30 },
-              { id: "turretR", cx: 0.34, cy: -0.05, w: 0.30, h: 0.55, maxHp: 30 }
+              { id: "turretL", cx: -0.32, cy: 0.02, w: 0.36, h: 0.62, maxHp: 30 },
+              { id: "turretR", cx: 0.32, cy: 0.02, w: 0.36, h: 0.62, maxHp: 30 }
           ]
       },
       sprite: buildSprite(BOSS_TEMPLATE, { b:"#2f6e6e", h:"#7fd9d9", s:"#123333", g:"#0a1e1e", c:"#aef2ff", w:"#4a9a9a", t:"#ffe14d", r:"#ff5555", p:"#222222" }) },
@@ -789,7 +792,9 @@ function spawnBoss() {
     let w, h;
     if (def.imgLoaded) {
         h = canvas.height * def.heightRatio;
-        w = h * (def.img.naturalWidth / def.img.naturalHeight);
+        // widthMulは高さはそのままに横幅だけを追加で拡大したい場合に使う(例: 海竜改の「横にも少し大きく」)。
+        // 未指定時は1倍(=これまで通り画像本来の縦横比のまま)。
+        w = h * (def.img.naturalWidth / def.img.naturalHeight) * (def.widthMul || 1);
     } else {
         w = def.sprite.w * def.scale * 2.6;
         h = def.sprite.h * def.scale * 2.6;
@@ -1388,9 +1393,6 @@ function applyItem(type) {
 const BOSS_DRIFT_SPEED = 35;   // 海竜/白虎の通常戦闘時のゆったりした横ドリフト速度(調整用定数)
 const QUEEN_DASH_SPEED = 230;  // 女王バチの急発進速度(調整用定数)
 const BOSS_ENTER_SPEED = 160;  // 登場演出の移動速度(調整用定数)
-// 女王バチ限定: ロゼット弾幕とデコイ分身スポーンが同時/直後に重ならないようにする共有クールダウン(秒)。
-// 低スペック端末での「フリーズ」報告に対する負荷軽減パス(詳細はqueenBeeRosetteBurst/spawnBossDecoysのコメント参照)。
-const QUEEN_BIG_ATTACK_GAP = 1.3;
 
 function destroyWeapon(boss, wpn) {
     wpn.destroyed = true;
@@ -1503,13 +1505,10 @@ function bossAttackQueenBee(bx, by) {
     if (bossPhase >= 2) {
         if (boss.lastRosetteTime === undefined) boss.lastRosetteTime = boss.timer;
         const rosetteCooldown = bossPhase >= 3 ? 4.5 : 6.0;
-        // 負荷軽減パス: ロゼット弾幕とデコイ分身の同時発生を防ぐ共有クールダウン(boss.lastBigAttackTime)。
-        // 両方が同フレーム/直後に重なると「弾幕14発+分身2~3体の射撃」が一気に積み上がり、低スペック端末での
-        // フリーズ・スタッタの最有力トリガーになりうるため、片方が発火したらもう片方をQUEEN_BIG_ATTACK_GAP秒は待たせる。
-        const bigGapOk = (boss.timer - (boss.lastBigAttackTime === undefined ? -999 : boss.lastBigAttackTime)) > QUEEN_BIG_ATTACK_GAP;
-        if (boss.timer - boss.lastRosetteTime > rosetteCooldown && bigGapOk) {
+        // デコイは常時1体ずつ時間差で補充する方式に変わり、まとめて2~3体沸く「大きな同時発生」がなくなったため、
+        // ロゼットとの同時発生を避ける共有クールダウンは不要になった。ロゼット自身のクールダウンのみで管理する。
+        if (boss.timer - boss.lastRosetteTime > rosetteCooldown) {
             boss.lastRosetteTime = boss.timer;
-            boss.lastBigAttackTime = boss.timer;
             queenBeeRosetteBurst(bx, by);
         }
     }
@@ -1547,10 +1546,9 @@ function queenBeeRosetteBurst(bx, by) {
 // 「弾を増やす」というプレイテスト要望の意図(デコイ自体も撃たれる的として機能する)に薄くなるため、
 // 「壊せるが本体ほど硬くはない(1発で消える)」小さな的として実装した。自機との接触判定は付けていない
 // (本体の当たり判定と混同されるのを避けるため、視覚的な分身+射撃源としてのみ機能させる判断)。
+// 「新たに出てくる雑魚敵」のように扱いたいというリクエストにより、この関数は常に1体だけ生成する
+// (呼び出し元のupdateBossが目標体数を維持するために必要な分だけ、時間差で繰り返し呼ぶ)。
 function spawnBossDecoys(bx, by) {
-    // フリーズの真因はロゼット弾幕側のテレグラフ例外バグだったと判明(第2版監査で特定・修正済み)。
-    // 原因が直ったので演出優先の値(2~3体)に戻す。
-    const count = 2 + (Math.random() < 0.5 ? 0 : 1); // 2~3体
     // プレイテストで「分身体は雑魚敵くらいの小ささにして、女王バチ本体が大きく目立つように」と指摘されたため、
     // ボスの拡大(heightRatio引き上げ)に連動してサイズが増えてしまう「本体比%」指定はやめ、
     // 雑魚(ENEMY_DEFSのsize値、40~50px程度)と同水準の固定サイズにする。
@@ -1562,7 +1560,7 @@ function spawnBossDecoys(bx, by) {
     // 分身が本体の陰に隠れたまま視認されずに終わる(プレイテストで「分身体が確認できない」と報告された原因)。
     // 本体サイズに連動させることで、今後さらに本体を拡大しても常に本体の外側から出現するようにする。
     const bossHalfDiag = Math.hypot(boss.w, boss.h) / 2;
-    for (let i = 0; i < count; i++) {
+    {
         const ang = Math.random() * Math.PI * 2;
         const dist = bossHalfDiag + 25 + Math.random() * 25;
         // 本体の外側に出すための距離だが、そのまま使うと画面外(特にボスが画面上部にいる時は上方向)に
@@ -1574,8 +1572,9 @@ function spawnBossDecoys(bx, by) {
             // 出現角度からさらに外側へ流れる向きの初速にし、本体の陰へ戻ってしまわないようにする
             // (この初速はupdate側のうろつき挙動が最初に発動するまでの短い間だけ使われる)。
             vx: Math.cos(ang) * (20 + Math.random() * 20), vy: Math.sin(ang) * (16 + Math.random() * 16),
-            // 「独自に動き回る子分バチ」に見せるため、単に流れて消えるだけだった頃より長めに画面に留める。
-            life: 3.6 + Math.random() * 1.4,
+            // 「雑魚敵扱い」にする方針のため、時間経過での自然消滅はさせない(倒されるまで残る)。
+            // ただし何らかの理由で処理が滞留した場合の保険として、実務上ほぼ到達しない長さの寿命だけ持たせる。
+            life: 999,
             w: decoyW, h: decoyH,
             // 負荷軽減パス: 初弾までの猶予を少し延長(0.5~1.2s → 0.8~1.6s)し、デコイ由来弾の初速密度を下げる。
             shootT: 0.8 + Math.random() * 0.8
@@ -1678,24 +1677,28 @@ function updateBoss(dt, now) {
         if (tg.t <= 0) { tg.onFire(); boss.telegraphs.splice(i, 1); }
     }
 
-    // 重要ルール: 女王バチはダッシュ中(移動中)は攻撃しない。ホバー(静止)中のみ攻撃可能。
-    if (boss.def.entranceType === "fadeIn" && boss.roamState !== "hovering") return;
-
-    // 女王バチ専用の追加ギミック(デコイ分身の定期スポーン): メインの攻撃間隔(attackTimer/interval)とは
-    // 別のクールダウン(decoyTimer)で管理する。この行に到達するのは「ダッシュ中でない」場合のみなので、
-    // 上の重要ルールと同じダッシュ中封じ込めが自然に適用される。
+    // 女王バチ専用の追加ギミック(デコイ分身の常時維持): 「新たに出てくる雑魚敵」のように扱いたいという
+    // リクエストに応え、一度にまとめて2~3体出して寿命切れで消える方式から、常に目標体数を維持し続ける方式に変更。
+    // 目標体数はノーマル2体・ハード3体。倒された(または何らかの理由で減った)場合は約2秒後に女王バチが補充する。
+    // ダッシュ中でも維持したいので、下の「ダッシュ中は攻撃しない」判定より前に置く。
     if (boss.def.entranceType === "fadeIn" && bossPhase >= 2) {
-        if (boss.decoyTimer === undefined) boss.decoyTimer = 3 + Math.random()*2;
-        boss.decoyTimer -= dt;
-        // 負荷軽減パス: ロゼット弾幕と同じ共有クールダウン(boss.lastBigAttackTime/QUEEN_BIG_ATTACK_GAP)を
-        // ここでもチェックし、直後にロゼットが発火していたらデコイ生成を一瞬だけ遅らせる(逆方向も同様に効く)。
-        const bigGapOk = (boss.timer - (boss.lastBigAttackTime === undefined ? -999 : boss.lastBigAttackTime)) > QUEEN_BIG_ATTACK_GAP;
-        if (boss.decoyTimer <= 0 && bigGapOk) {
-            spawnBossDecoys(boss.x, boss.y);
-            boss.lastBigAttackTime = boss.timer;
-            boss.decoyTimer = 6.5 + Math.random()*2.5;
+        if (boss.decoyRespawnTimers === undefined) boss.decoyRespawnTimers = [];
+        const targetCount = isHardMode() ? 3 : 2;
+        const deficit = targetCount - bossDecoys.length - boss.decoyRespawnTimers.length;
+        for (let k = 0; k < deficit; k++) {
+            boss.decoyRespawnTimers.push(1.8 + Math.random() * 0.6); // 約2秒後に補充
+        }
+        for (let k = boss.decoyRespawnTimers.length - 1; k >= 0; k--) {
+            boss.decoyRespawnTimers[k] -= dt;
+            if (boss.decoyRespawnTimers[k] <= 0) {
+                boss.decoyRespawnTimers.splice(k, 1);
+                spawnBossDecoys(boss.x, boss.y);
+            }
         }
     }
+
+    // 重要ルール: 女王バチはダッシュ中(移動中)は攻撃しない。ホバー(静止)中のみ攻撃可能。
+    if (boss.def.entranceType === "fadeIn" && boss.roamState !== "hovering") return;
 
     const interval = bossPhase === 1 ? 1.0 : (bossPhase === 2 ? 0.65 : 0.4);
     if (boss.attackTimer > interval) {
@@ -1818,7 +1821,6 @@ function draw(dt) {
         // 本体より手前に描画することで、多少重なっても常に視認できるようにする。
         if (bossDecoys.length) {
             bossDecoys.forEach(d => {
-                if (d.life < 0.5 && Math.floor(Date.now()/80)%2===0) return;
                 ctx.save();
                 ctx.globalAlpha = 0.85;
                 ctx.translate(d.x, d.y);
