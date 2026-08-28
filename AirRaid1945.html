@@ -229,8 +229,67 @@ const ENEMY_SPRITES = {
     ], { b:"#8a7a3a", h:"#c9b96a", s:"#332c10", g:"#241f0a", c:"#e8ffff", w:"#a99a5a", u:"#e0d6a0", m:"#ffe14d", y:"#ffde59", p:"#222222" }),
     bomber: buildSprite([
         "..p......",".bbb.....",".bhb.....","bgcb.....","bgcb.....","bhbs.....","bhbwws...","sgbwwwu..","bhbwwwwus","sgbwwwwu.","bhbwwwus.","bhbwws...","bhbs.....",".b.r....."
-    ], { b:"#445577", h:"#8fa8cc", s:"#101825", g:"#0a0f18", c:"#8cd0ff", w:"#5a6b8a", u:"#b8c8e0", r:"#ff5555", p:"#222222" })
+    ], { b:"#445577", h:"#8fa8cc", s:"#101825", g:"#0a0f18", c:"#8cd0ff", w:"#5a6b8a", u:"#b8c8e0", r:"#ff5555", p:"#222222" }),
+    // ---- 以下、新規12種の地上/追加空中ユニット用フォールバック・プロシージャルスプライト ----
+    // (画像アセット読み込み失敗時のみ使用。a/b等のバリアントは同一形状+パレット差程度の簡易共有)
+    jet: buildSprite([
+        "p......","bb.....","bhb....","bgcb...","sgbwu..","bhbwus.","bhbwus.","b.r....","b......"
+    ], { b:"#3a3a4a", h:"#8a90b0", s:"#151520", g:"#0a0a12", c:"#c8e8ff", w:"#5a6080", u:"#d0d8f0", r:"#ff8800", p:"#222222" }),
+    heli: buildSprite([
+        "..p......","..b......",".bbb.....","bhcgb....","bhcgb....","..b......","..b......","rrrrrrrrr"
+    ], { b:"#3a4a3a", h:"#6a8a6a", c:"#1c2a1c", g:"#101a10", r:"#888888", p:"#222222" }),
+    tank: buildSprite([
+        "......","bbbbb.","bhhhb.","bhcgb.","bhcgb.","tbbbbt","bbbbbb"
+    ], { b:"#4a5a3a", h:"#7a8a5a", c:"#2a331f", g:"#1c220f", t:"#222222" }),
+    turret: buildSprite([
+        "...","b..","bhb","bcb","bbb"
+    ], { b:"#555a55", h:"#8a908a", c:"#222222" }),
+    battleship: buildSprite([
+        "....p.......",".bbbbbb.....",".bhhhhb.....","bgbcccbg....","bgbcccbg....","bgbbbbbg....","bgbbbbbg....","bgbcccbg....","bgbbbbbg....","bgbbbbbg....",".bhhhhb.....",".bbbbbb.....","....t......."
+    ], { b:"#33403a", h:"#5a6a5a", g:"#1a2420", c:"#4a5a52", t:"#ffe14d", p:"#151b17" })
 };
+
+// 敵ユニット定義: 画像アセット(あれば)+フォールバック用プロシージャルスプライトキー+移動/攻撃パターン+ステージ割当を一元管理。
+// kind: "air"(飛行/既存の縦スクロール型移動ベース) / "ground"(地上・海上の固定目標、横移動は最小限でスクロールに合わせて流れる)
+// move: 実際の移動ロジックの識別子(update()内のswitchで使用)
+// shoot: 既存fighter/bomber/zigzag(=aimed)の3パターンを流用する識別子
+const ENEMY_DEFS = {
+    fighter:      { imgSrc: "assets/enemies/unit1_fighter.png",      spriteKey: "fighter",    kind: "air",    move: "straight",        shoot: "fighter", hp: 1, pts: 30 },
+    bomber:       { imgSrc: "assets/enemies/unit1_bomber.png",       spriteKey: "bomber",     kind: "air",    move: "straight",        shoot: "bomber",  hp: 5, pts: 150 },
+    zigzag:       { imgSrc: null,                                     spriteKey: "zigzag",     kind: "air",    move: "zigzag",           shoot: "aimed",   hp: 2, pts: 60 },
+    jet:          { imgSrc: "assets/enemies/unit2_jet.png",          spriteKey: "jet",        kind: "air",    move: "jet",              shoot: "fighter", hp: 2, pts: 90 },
+    heli_a:       { imgSrc: "assets/enemies/unit2_heli_a.png",       spriteKey: "heli",       kind: "air",    move: "heli",             shoot: "aimed",   hp: 3, pts: 100 },
+    heli_b:       { imgSrc: "assets/enemies/unit2_heli_b.png",       spriteKey: "heli",       kind: "air",    move: "heli",             shoot: "aimed",   hp: 3, pts: 100 },
+    tank_a:       { imgSrc: "assets/enemies/unit1_tank_a.png",       spriteKey: "tank",       kind: "ground", move: "groundSlow",       shoot: "fighter", hp: 4, pts: 120 },
+    tank_b:       { imgSrc: "assets/enemies/unit1_tank_b.png",       spriteKey: "tank",       kind: "ground", move: "groundSlow",       shoot: "fighter", hp: 4, pts: 120 },
+    turret_a:     { imgSrc: "assets/enemies/unit2_turret_a.png",     spriteKey: "turret",     kind: "ground", move: "turret",           shoot: "aimed",   hp: 3, pts: 80 },
+    turret_b:     { imgSrc: "assets/enemies/unit2_turret_b.png",     spriteKey: "turret",     kind: "ground", move: "turret",           shoot: "aimed",   hp: 3, pts: 80 },
+    turret_c:     { imgSrc: "assets/enemies/unit2_turret_c.png",     spriteKey: "turret",     kind: "ground", move: "turret",           shoot: "aimed",   hp: 3, pts: 80 },
+    battleship_a: { imgSrc: "assets/enemies/unit1_battleship_a.png", spriteKey: "battleship", kind: "ground", move: "battleshipDrift", shoot: "bomber",  hp: 8, pts: 220 },
+    battleship_b: { imgSrc: "assets/enemies/unit1_battleship_b.png", spriteKey: "battleship", kind: "ground", move: "battleshipDrift", shoot: "bomber",  hp: 8, pts: 220 }
+};
+
+// ステージ毎に出現しうるユニットの排他的なリスト(このリストに無いユニットはそのステージでは一切出現しない)
+const STAGE_ENEMY_POOL = {
+    1: ["battleship_a", "battleship_b", "fighter", "bomber", "heli_a"],   // 海+島
+    2: ["tank_a", "tank_b", "turret_a", "turret_b", "jet"],                // 砂漠+岩山+オアシス
+    3: ["turret_c", "heli_b", "fighter", "bomber", "jet"]                  // 軍用基地(既出タイプの再構成+新規turret_c)
+};
+
+// 敵画像アセットの読み込み(自機・ボスと同じパターン: 失敗/未指定時は既存のドット絵spriteにフォールバック)
+Object.keys(ENEMY_DEFS).forEach(key => {
+    const def = ENEMY_DEFS[key];
+    def.imgLoaded = false;
+    if (!def.imgSrc) return;
+    const img = new Image();
+    img.onload = () => {
+        def.imgLoaded = true;
+        try { def.outlineImg = buildOutlinedImage(img); } catch(e) { def.outlineImg = null; }
+    };
+    img.onerror = () => { def.imgLoaded = false; };
+    img.src = def.imgSrc;
+    def.img = img;
+});
 
 const BOSS_TEMPLATE = [
     ".....p....",
@@ -254,14 +313,98 @@ const BOSS_TEMPLATE = [
     "..b.r.b...",
     "..b...b..."
 ];
+// 3層当たり判定の定義(cx/cy: ボス中心からのオフセット比率, w/h: ボス描画サイズに対する比率)。
+// core=本体(自機接触即死・被弾でメインHPに直撃)、weapons=個別HPを持つ副パーツ(自機接触はグレイズのみ)、
+// それ以外(定義に含まれない領域)は完全ノーコリジョンの装飾部分として扱う。
 const BOSSES = [
-    { name: "海竜改", scale: 1.0, hpMul: 1.0,
+    { name: "海竜改", scale: 1.0, hpMul: 1.0, imgSrc: "assets/bosses/boss_seadragon_v2_full.png",
+      entranceType: "riseFlip", heightRatio: 0.36,
+      hitboxDef: {
+          core: { cx: 0, cy: 0.02, w: 0.34, h: 0.88 },
+          weapons: [
+              { id: "turretL", cx: -0.34, cy: -0.05, w: 0.30, h: 0.55, maxHp: 30 },
+              { id: "turretR", cx: 0.34, cy: -0.05, w: 0.30, h: 0.55, maxHp: 30 }
+          ]
+      },
       sprite: buildSprite(BOSS_TEMPLATE, { b:"#2f6e6e", h:"#7fd9d9", s:"#123333", g:"#0a1e1e", c:"#aef2ff", w:"#4a9a9a", t:"#ffe14d", r:"#ff5555", p:"#222222" }) },
-    { name: "陸戦重爆", scale: 1.12, hpMul: 1.35,
+    { name: "陸戦重爆", scale: 1.12, hpMul: 1.35, imgSrc: "assets/bosses/boss_whitetiger_v1_full.png",
+      entranceType: "driveIn", heightRatio: 0.34,
+      hitboxDef: {
+          core: { cx: 0, cy: 0.05, w: 0.30, h: 0.78 },
+          weapons: [
+              { id: "leftSide", cx: -0.34, cy: 0.0, w: 0.34, h: 0.85, maxHp: 35 },
+              { id: "gunArm", cx: 0.36, cy: -0.24, w: 0.32, h: 0.42, maxHp: 30 },
+              { id: "rightTread", cx: 0.32, cy: 0.30, w: 0.34, h: 0.42, maxHp: 35 }
+          ]
+      },
       sprite: buildSprite(BOSS_TEMPLATE, { b:"#5a6b2e", h:"#a8c060", s:"#232a10", g:"#141a08", c:"#e8ffb0", w:"#7a8a3e", t:"#ffe14d", r:"#ff5555", p:"#222222" }) },
-    { name: "要塞戦闘機", scale: 1.28, hpMul: 1.8,
+    { name: "要塞戦闘機", scale: 1.28, hpMul: 1.8, imgSrc: "assets/bosses/boss_queenbee_v1_full.png",
+      entranceType: "fadeIn", heightRatio: 0.32,
+      hitboxDef: {
+          // 女王バチは翼(装飾/ノーコリジョン)を明確に除外し、胴体中心の細い帯だけをcoreにする
+          core: { cx: 0, cy: 0.08, w: 0.22, h: 0.55 },
+          weapons: [
+              { id: "head", cx: 0, cy: -0.36, w: 0.30, h: 0.22, maxHp: 25 },
+              { id: "stinger", cx: 0, cy: 0.44, w: 0.18, h: 0.18, maxHp: 25 }
+          ]
+      },
       sprite: buildSprite(BOSS_TEMPLATE, { b:"#5a1414", h:"#c04040", s:"#220505", g:"#150303", c:"#ffd0d0", w:"#7a2424", t:"#ffe14d", r:"#ffffff", p:"#222222" }) }
 ];
+
+// ボス画像の読み込み(自機と同じパターン: 失敗時は既存のドット絵spriteにフォールバック)
+BOSSES.forEach(def => {
+    def.imgLoaded = false;
+    if (!def.imgSrc) return;
+    const img = new Image();
+    img.onload = () => {
+        def.imgLoaded = true;
+        try { def.outlineImg = buildOutlinedImage(img); } catch(e) { def.outlineImg = null; }
+    };
+    img.onerror = () => { def.imgLoaded = false; };
+    img.src = def.imgSrc;
+    def.img = img;
+});
+
+// ============ 爆発エフェクト(汎用4フレームスプライトアニメーション) ============
+// 自機/敵/ボス画像と同じ imgLoaded/onerror フォールバックの考え方を踏襲する。
+// 4枚すべてが読み込めた場合のみスプライトアニメーションを重ねて描画し、
+// 1枚でも失敗すれば既存のパーティクルのみの爆発表現(createExplosion内のparticles.push)に自動フォールバックする。
+const EXPLOSION_FRAME_SRCS = [
+    "assets/fx/explosion_flash.png",     // 1枚目: 発生直後の小さな閃光
+    "assets/fx/explosion_fireball.png",  // 2枚目: オレンジ/黄色の火球
+    "assets/fx/explosion_smokefire.png", // 3枚目: 火が黒煙に変わっていく
+    "assets/fx/explosion_smoke.png"      // 4枚目: 拡散して消えていく黒煙
+];
+const EXPLOSION_FRAME_DURATION = 0.09; // 1フレームあたりの表示秒数(4枚合計で約0.36秒の再生時間)
+const EXPLOSION_FRAMES = EXPLOSION_FRAME_SRCS.map(src => {
+    const frame = { img: new Image(), loaded: false };
+    frame.img.onload = () => { frame.loaded = true; };
+    frame.img.onerror = () => { frame.loaded = false; };
+    frame.img.src = src;
+    return frame;
+});
+// 4枚すべて読み込めている時だけスプライト側を描画する(1枚でも欠けたら見た目の統一感が崩れるため全体でフォールバック)
+function explosionFramesReady() { return EXPLOSION_FRAMES.every(f => f.loaded); }
+
+// ============ マズルフラッシュエフェクト(専用3フレームスプライトアニメーション) ============
+// 爆発スプライトと同じ imgLoaded/onerror フォールバックの考え方を踏襲するが、
+// 「銃口の閃光」と「何かが破壊された爆発」を視覚的に混同させないため、あえて別の画像セット・別の読み込み配列として管理する。
+// 3枚すべてが読み込めた場合のみスプライトアニメーションを描画し、1枚でも失敗すれば
+// 既存のシンプルな円(ctx.arcで描く白い成長円)の予告演出にそのままフォールバックする。
+const MUZZLE_FLASH_FRAME_SRCS = [
+    "assets/fx/muzzleflash_spark.png", // 1枚目: 小さくタイトな閃光
+    "assets/fx/muzzleflash_burst.png", // 2枚目: 大きく明るいピーク
+    "assets/fx/muzzleflash_fade.png"   // 3枚目: 消えかけの小さなきらめき
+];
+const MUZZLE_FLASH_FRAMES = MUZZLE_FLASH_FRAME_SRCS.map(src => {
+    const frame = { img: new Image(), loaded: false };
+    frame.img.onload = () => { frame.loaded = true; };
+    frame.img.onerror = () => { frame.loaded = false; };
+    frame.img.src = src;
+    return frame;
+});
+// 3枚すべて読み込めている時だけスプライト側を描画する(1枚でも欠けたら既存の円エフェクトにフォールバック)
+function muzzleFlashFramesReady() { return MUZZLE_FLASH_FRAMES.every(f => f.loaded); }
 
 // ============ サウンド ============
 let actx = null;
@@ -290,8 +433,14 @@ const sfx = {
 
 // ============ ゲーム状態 ============
 let gameState = "TITLE", score = 0, life = 3, stageNum = 1, lastTime = 0, highScore = 0;
+// loopNum: 1=Normal, 2=Hard(2周目)。stageNumはループごとに1-3で再利用し、BOSSES[stageNum-1]のインデックスは変えない。
+let loopNum = 1;
+function isHardMode() { return loopNum >= 2; }
+// スコア加算は必ずこのヘルパーを通す(Hardループ中は2倍のスコアボーナス。DoDonPachi等の2周目スコア倍率慣習に準拠)。
+function addScore(n) { score += Math.floor(n * (isHardMode() ? 2 : 1)); }
 let selectedShipIdx = 0;
 let enemies = [], enemyBullets = [], items = [], particles = [], boss = null, groundDecor = [];
+let explosionAnims = []; // 爆発スプライトアニメーションのインスタンス配列: { x, y, frame, t, size }
 let shake = 0, comboCount = 0, comboTimer = 0, spGauge = 0, bombStock = 3, bombFlashT = 0;
 let spawnTimer = 0, stageTimer = 0, stageEnemiesLeft = 0, bossPhase = 1, scrollY = 0;
 
@@ -302,7 +451,7 @@ const player = {
 
 function findNearestTarget(fromX, fromY) {
     let best = null, bestDist = Infinity;
-    if (boss && !boss.entering) {
+    if (bossIsVulnerable()) {
         const d = Math.hypot(boss.x - fromX, boss.y - fromY);
         if (d < bestDist) { bestDist = d; best = boss; }
     }
@@ -313,10 +462,19 @@ function findNearestTarget(fromX, fromY) {
     return best;
 }
 
-function createExplosion(x, y, color, count=8) {
+function createExplosion(x, y, color, count=8, size=null) {
     for(let i=0; i<count; i++) {
         particles.push({ x, y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, life: 1.0, color, size: Math.random()*3+1 });
     }
+    // countを見た目サイズの手がかりに流用(既存呼び出し箇所を変更せずに済むように既定値化)。
+    // 雑魚撃墜(count=10前後)は小さく、ボス撃破(count=50)は画面映えする大きさになるようスケールする。
+    // 明示的にsizeが渡された場合はそちらを優先する。
+    // count<8(1発ごとの被弾スパーク・マズルフラッシュ予告など、連射中に大量発生する軽量な呼び出し)は
+    // スプライトアニメーションを重ねない。全弾着弾のたびに0.36秒の爆発アニメが乱発すると
+    // 「撃破の爆発」の特別感が薄れ、連射時に画面がちらついて見えるため、撃破/被害級の爆発のみに限定する。
+    if (count < 8 && size === null) return;
+    const animSize = size !== null ? size : Math.min(170, 22 + count * 2.6);
+    explosionAnims.push({ x, y, frame: 0, t: 0, size: animSize });
 }
 
 // ============ 機体選択画面 ============
@@ -492,20 +650,22 @@ const STAGE_LENGTH = 32; // 撃破必要体数(ボス出現までの目安)
 function initStage() {
     enemies = []; enemyBullets = []; items = []; boss = null;
     document.getElementById("boss-hp-container").style.display = "none";
-    document.getElementById("stage").innerText = stageNum;
+    document.getElementById("stage").innerText = stageNum + (isHardMode() ? "-B" : "");
     stageTimer = 0; spawnTimer = 1; stageEnemiesLeft = STAGE_LENGTH + stageNum*6;
     initGroundDecor(stageNum);
-    showBanner("wave-banner", "STAGE " + stageNum);
+    showBanner("wave-banner", "STAGE " + stageNum + (isHardMode() ? " HARD" : ""));
 }
 
 // ステージ開始直後は緩やかに、経過時間とともに現在の密度まで上がっていく難易度カーブ
-function difficultyFactor() { return Math.min(1, stageTimer / 16); }
+// Hardループ中は再スタート時から既にある程度の密度がある状態にする(床上げ)
+function difficultyFactor() { return Math.max(isHardMode() ? 0.5 : 0, Math.min(1, stageTimer / 16)); }
 
 function spawnEnemyWave() {
     const df = difficultyFactor();
     const patterns = ["line", "vshape", "zigzagLine"];
     const pat = patterns[Math.floor(Math.random()*patterns.length)];
-    const typePool = stageNum === 1 ? ["fighter","zigzag"] : (stageNum === 2 ? ["fighter","zigzag","bomber"] : ["fighter","zigzag","bomber"]);
+    // ステージごとの排他的な出現プール(STAGE_ENEMY_POOL)からのみ選択する。ここに無いタイプはそのステージに出現しない。
+    const typePool = STAGE_ENEMY_POOL[stageNum] || STAGE_ENEMY_POOL[1];
     if (pat === "line") {
         const n = Math.max(3, Math.round(5 - (1-df)*2));
         for (let i=0;i<n;i++) {
@@ -522,23 +682,85 @@ function spawnEnemyWave() {
     } else {
         const n = Math.max(4, Math.round(6 - (1-df)*2));
         for (let i=0;i<n;i++) {
-            enemies.push(makeEnemy("zigzag", 30 + i*60, -30, i%2===0 ? 1 : -1));
+            const type = typePool[Math.floor(Math.random()*typePool.length)];
+            enemies.push(makeEnemy(type, 30 + i*60, -30, i%2===0 ? 1 : -1));
         }
     }
 }
 
 function makeEnemy(type, x, y, zigDir=1) {
-    const spr = ENEMY_SPRITES[type];
-    const hp = type === "bomber" ? 5 : (type === "zigzag" ? 2 : 1);
-    const pts = type === "bomber" ? 150 : (type === "zigzag" ? 60 : 30);
-    return { type, x, y, w: spr.w*2.2, h: spr.h*2.2, hp, maxHp: hp, pts, vy: 60 + stageNum*8, t: 0, zigDir, shootT: Math.random()*1.5 };
+    const def = ENEMY_DEFS[type];
+    const spr = ENEMY_SPRITES[def.spriteKey];
+    const hp = def.hp, pts = def.pts;
+    const scrollSpd = 60 + stageNum*10; // 背景スクロール速度(drawBackgroundのspdと同一)。地上/海上ユニットはこの速度で「流れる」。
+    const e = {
+        type, x, y, baseX: x, w: spr.w*2.2, h: spr.h*2.2, hp, maxHp: hp, pts,
+        t: 0, zigDir, shootT: Math.random()*1.5, kind: def.kind, move: def.move, shoot: def.shoot
+    };
+    if (def.kind === "air") {
+        if (def.move === "jet") e.vy = (60 + stageNum*8) * 1.7;       // ジェット: 速く・攻撃的に
+        else if (def.move === "heli") e.vy = (60 + stageNum*8) * 0.45; // ヘリ: ゆっくり降下しつつ左右にホバー&ストレイフ
+        else e.vy = 60 + stageNum*8;
+    } else {
+        // 地上/海上ユニット: 独自にマニューバせず、地形と同じ速度でスクロールして流れていく
+        e.vy = scrollSpd;
+        if (def.move === "battleshipDrift") e.dir = Math.random() < 0.5 ? -1 : 1;
+    }
+    return e;
 }
+
+// region(cx/cy/w/h比率)をボスのローカル座標(中心原点)の矩形に変換する共通処理。
+// 当たり判定(ワールド座標)と、破壊済みパーツの描画(ボス中心基準のローカル座標)の両方から使う。
+function regionLocalRect(region, w, h) {
+    return {
+        x: region.cx * w - (region.w * w) / 2,
+        y: region.cy * h - (region.h * h) / 2,
+        w: region.w * w,
+        h: region.h * h
+    };
+}
+function getBossRegionRect(b, region) {
+    const r = regionLocalRect(region, b.w, b.h);
+    return { x: b.x + r.x, y: b.y + r.y, w: r.w, h: r.h };
+}
+// ボスが登場演出中でなく、実際に干渉可能(被弾・接触が成立する)状態かどうかの一元判定。
+// 自機弾・自機接触・ボムなど、ボスに影響を与えうる経路は必ずこれを通すこと。
+function bossIsVulnerable() { return !!(boss && boss.state === "battle"); }
 
 function spawnBoss() {
     const def = BOSSES[stageNum-1];
     bossPhase = 1;
     const maxHp = Math.floor((140 + stageNum*60) * def.hpMul);
-    boss = { def, x: 150, y: -80, w: def.sprite.w*def.scale*2.6, h: def.sprite.h*def.scale*2.6, hp: maxHp, maxHp, dir: 1, timer: 0, attackTimer: 0, entering: true };
+    let w, h;
+    if (def.imgLoaded) {
+        h = canvas.height * def.heightRatio;
+        w = h * (def.img.naturalWidth / def.img.naturalHeight);
+    } else {
+        w = def.sprite.w * def.scale * 2.6;
+        h = def.sprite.h * def.scale * 2.6;
+    }
+    const weapons = def.hitboxDef.weapons.map(wd => ({ ...wd, hp: wd.maxHp, destroyed: false }));
+    boss = {
+        def, w, h, hp: maxHp, maxHp, dir: 1, timer: 0, attackTimer: 0,
+        state: "entering", rotation: 0, weapons, hitboxDef: def.hitboxDef,
+        telegraphs: [], // ボス固有の弾幕テレグラフ(予告演出)キュー。updateBoss内で経過管理・発火する。
+        x: 200, y: -h
+    };
+    // ボスごとの登場演出の初期状態
+    if (def.entranceType === "riseFlip") {
+        boss.x = 200;
+        boss.y = canvas.height + boss.h;      // 画面下からスタート
+        boss.enterPhase = "ascend";
+    } else if (def.entranceType === "driveIn") {
+        boss.driveSide = Math.random() < 0.5 ? -1 : 1;  // -1:画面左から, 1:画面右から
+        boss.x = boss.driveSide < 0 ? -boss.w : canvas.width + boss.w;
+        boss.y = 110;
+        boss.targetX = 200;
+    } else { // fadeIn (クイーンバチ): 通常の敵同様に上から進入
+        boss.x = 200;
+        boss.y = -boss.h;
+        boss.targetY = 130;
+    }
     document.getElementById("boss-hp-container").style.display = "block";
     showBanner("boss-alert", "WARNING");
 }
@@ -610,7 +832,7 @@ function useBomb() {
         enemies[i].hp -= dmg;
         if (enemies[i].hp <= 0) { killEnemy(enemies[i], i); }
     }
-    if (boss) {
+    if (bossIsVulnerable()) {
         boss.hp -= dmg * 2;
         checkBossPhase();
         if (boss.hp <= 0) defeatBoss();
@@ -632,7 +854,7 @@ function startGame() {
     ensureAudio();
     document.getElementById("start-screen").style.display = "none";
     gameState = "PLAY";
-    score = 0; life = 3; stageNum = 1; spGauge = 0; comboCount = 0; bombStock = 3;
+    score = 0; life = 3; stageNum = 1; loopNum = 1; spGauge = 0; comboCount = 0; bombStock = 3;
     player.ship = SHIPS[selectedShipIdx];
     player.weaponLv = 1; player.x = 180; player.y = 420; player.invuln = 0; player.bullets = []; player.lastSubShot = 0;
     document.getElementById("life").innerText = life;
@@ -714,7 +936,7 @@ function killEnemy(e, idx) {
     enemies.splice(idx, 1);
     comboCount++; comboTimer = 0;
     let pts = Math.floor(e.pts * (1 + comboCount * 0.08));
-    score += pts;
+    addScore(pts);
     spawnItem(e.x+e.w/2, e.y+e.h/2);
     spGauge = Math.min(100, spGauge + 2);
     stageEnemiesLeft = Math.max(0, stageEnemiesLeft - 1);
@@ -728,12 +950,19 @@ function checkBossPhase() {
 
 function defeatBoss() {
     createExplosion(boss.x + boss.w/2, boss.y + boss.h/2, "#ff8040", 50);
-    score += 3000 + stageNum*500; comboCount = 0; shake = 45;
+    addScore(3000 + stageNum*500); comboCount = 0; shake = 45;
     sfx.explode();
     boss = null;
     document.getElementById("boss-hp-container").style.display = "none";
     if (stageNum >= 3) {
-        setTimeout(()=>endGame(true), 300);
+        if (loopNum < 2) {
+            // Normal(1周目)クリア→シームレスにHard(2周目)へ継続。確認画面なし、スコア/ライフ/武装Lv/ボム所持数は一切リセットしない。
+            setTimeout(()=>{ sfx.stageClear(); loopNum = 2; stageNum = 1; initStage(); }, 400);
+            gameState = "STAGE_CLEAR_WAIT";
+            setTimeout(()=>{ if (gameState === "STAGE_CLEAR_WAIT") gameState = "PLAY"; }, 450);
+        } else {
+            setTimeout(()=>endGame(true), 300);
+        }
     } else {
         setTimeout(()=>{ sfx.stageClear(); stageNum++; initStage(); }, 400);
         gameState = "STAGE_CLEAR_WAIT";
@@ -784,18 +1013,37 @@ function update(dt, now) {
         }
         if (b.y < -20 || b.y > canvas.height+20 || b.x < -20 || b.x > canvas.width+20) { player.bullets.splice(i, 1); continue; }
 
-        if (boss) {
-            const bx = boss.x - boss.w/2, by = boss.y - boss.h/2;
-            if (b.x < bx+boss.w && b.x+b.w > bx && b.y < by+boss.h && b.y+b.h > by && !boss.entering) {
-                if (!b.pierce || --b.hitsLeft <= 0) player.bullets.splice(i, 1);
-                boss.hp -= b.dmg;
-                sfx.bossHit();
-                createExplosion(b.x, b.y, "#f00", 3);
-                checkBossPhase();
-                document.getElementById("boss-hp-bar").style.width = Math.max(0,(boss.hp/boss.maxHp)*100) + "%";
-                if (boss.hp <= 0) defeatBoss();
-                continue;
+        if (bossIsVulnerable()) {
+            // 3層当たり判定: まず武装(weapons)を個別HPで判定、当たらなければcore(本体)を判定。
+            // どちらの領域にも入らない場合は装飾部分としてノーコリジョン(弾はそのまま素通り)。
+            let hitPart = false;
+            for (const wpn of boss.weapons) {
+                if (wpn.destroyed) continue;
+                const r = getBossRegionRect(boss, wpn);
+                if (b.x < r.x+r.w && b.x+b.w > r.x && b.y < r.y+r.h && b.y+b.h > r.y) {
+                    if (!b.pierce || --b.hitsLeft <= 0) player.bullets.splice(i, 1);
+                    wpn.hp -= b.dmg;
+                    sfx.bossHit();
+                    createExplosion(b.x, b.y, "#f80", 3);
+                    if (wpn.hp <= 0) destroyWeapon(boss, wpn);
+                    hitPart = true;
+                    break;
+                }
             }
+            if (!hitPart) {
+                const core = getBossRegionRect(boss, boss.hitboxDef.core);
+                if (b.x < core.x+core.w && b.x+b.w > core.x && b.y < core.y+core.h && b.y+b.h > core.y) {
+                    if (!b.pierce || --b.hitsLeft <= 0) player.bullets.splice(i, 1);
+                    boss.hp -= b.dmg;
+                    sfx.bossHit();
+                    createExplosion(b.x, b.y, "#f00", 3);
+                    checkBossPhase();
+                    document.getElementById("boss-hp-bar").style.width = Math.max(0,(boss.hp/boss.maxHp)*100) + "%";
+                    if (boss.hp <= 0) defeatBoss();
+                    hitPart = true;
+                }
+            }
+            if (hitPart) continue;
         }
 
         for (let j = enemies.length - 1; j >= 0; j--) {
@@ -844,26 +1092,60 @@ function update(dt, now) {
         const e = enemies[i];
         e.t += dt;
         e.y += e.vy * dt;
-        if (e.type === "zigzag") e.x += Math.sin(e.t*4) * 90 * dt * e.zigDir;
-        e.x = Math.max(15, Math.min(canvas.width-15, e.x));
+        // 移動パターン(move): 飛行タイプは既存の直進/ジグザグ路線を踏襲・拡張、地上/海上タイプは
+        // 自律的にマニューバせず、地形と同じ速度で流れるだけ(旋回砲塔は微小な揺れのみ)。
+        if (e.move === "zigzag") {
+            e.x += Math.sin(e.t*4) * 90 * dt * e.zigDir;
+        } else if (e.move === "jet") {
+            // ジェット: ほぼ直進だが速度感を出すための小さな蛇行
+            e.x += Math.sin(e.t*2.4) * 40 * dt * e.zigDir;
+        } else if (e.move === "heli") {
+            // ヘリ: ゆっくり降下しながら左右に大きくホバー&ストレイフ
+            e.x = e.baseX + Math.sin(e.t*1.6) * 70;
+        } else if (e.move === "turret") {
+            // 砲台: 据え置き兵器なので、わずかな旋回揺れ程度でほぼ静止
+            e.x = e.baseX + Math.sin(e.t*0.8) * 4;
+        } else if (e.move === "groundSlow") {
+            // 戦車: 地上車両として最小限の左右のブレのみ
+            e.x = e.baseX + Math.sin(e.t*0.5) * 2;
+        } else if (e.move === "battleshipDrift") {
+            // 戦艦: ボスの横ドリフトに準じた、ゆったり広い横移動
+            e.x += BOSS_DRIFT_SPEED * 0.5 * e.dir * dt;
+            if (e.x > canvas.width - e.w*0.3 || e.x < e.w*0.3) e.dir *= -1;
+        }
+        if (e.move !== "heli" && e.move !== "turret" && e.move !== "groundSlow") {
+            e.x = Math.max(15, Math.min(canvas.width-15, e.x));
+        }
         e.shootT -= dt;
         if (e.shootT <= 0 && e.y > 0 && e.y < 380) {
             const cooldownBonus = (1-difficultyFactor())*0.9; // ステージ開始直後は射撃間隔を延ばして緩やかに
-            if (e.type === "fighter") {
-                // 基本雑魚: 自機を狙わない直進弾のみ(読みやすさ優先)
+            // 射撃パターン(shoot): 既存のfighter(直進)/bomber(左右2方向)/aimed(=旧zigzagの弱め狙い撃ち)の
+            // 3パターンを、シルエット・役割に応じて各ユニットに割り当てて流用する。
+            if (e.shoot === "fighter") {
                 e.shootT = 1.6 + Math.random()*1.0 - stageNum*0.08 + cooldownBonus;
                 enemyBullets.push({ x: e.x, y: e.y, w: 4, h: 8, vx: 0, vy: 150 });
-            } else if (e.type === "bomber") {
-                // 中型: 固定間隔で左右2方向に撃ち分ける砲台的パターン(狙い撃ちしない)
+            } else if (e.shoot === "bomber") {
                 e.shootT = 1.8 + Math.random()*0.6 - stageNum*0.05 + cooldownBonus;
                 enemyBullets.push({ x: e.x, y: e.y, w: 4, h: 8, vx: -70, vy: 140 });
                 enemyBullets.push({ x: e.x, y: e.y, w: 4, h: 8, vx: 70, vy: 140 });
             } else {
-                // ジグザグ: 弱めの狙い撃ち(速度を抑えて回避しやすく)
+                // aimed: 弱めの狙い撃ち(速度を抑えて回避しやすく)
                 e.shootT = 1.7 + Math.random()*1.2 - stageNum*0.08 + cooldownBonus;
                 const dx = (player.x+player.w/2) - e.x, dy = (player.y - e.y);
                 const len = Math.max(1, Math.hypot(dx,dy));
                 enemyBullets.push({ x: e.x, y: e.y, w: 4, h: 8, vx: dx/len*100, vy: dy/len*100 + 70 });
+            }
+            // Hardループ限定の追加弾: 通常弾に加えて射撃パターンごとに1パターン上乗せ(既存パターンは変更しない)
+            if (isHardMode()) {
+                if (e.shoot === "fighter") {
+                    // 直進弾のみだったfighter系(fighter/jet/tank)に、Hardでは狙い撃ちの副弾を追加
+                    const dx = (player.x+player.w/2) - e.x, dy = (player.y - e.y);
+                    const len = Math.max(1, Math.hypot(dx,dy));
+                    enemyBullets.push({ x: e.x, y: e.y, w: 4, h: 8, vx: dx/len*120, vy: dy/len*120 + 60 });
+                } else if (e.shoot === "bomber") {
+                    // 左右2方向だけだったbomber系(bomber/battleship)に、Hardでは中央直進弾を追加して3方向に
+                    enemyBullets.push({ x: e.x, y: e.y, w: 4, h: 8, vx: 0, vy: 160 });
+                }
             }
         }
         if (e.y > canvas.height + 40) enemies.splice(i, 1);
@@ -872,6 +1154,17 @@ function update(dt, now) {
     // 敵弾
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
         let eb = enemyBullets[i];
+        if (eb.homing) {
+            // 自機弾のホーミング実装(turnRate/速度ブレンド)と同じ考え方を敵弾にも適用。
+            // turnRateを緩めに設定することで、必ず避けられる程度の追尾に留める。
+            const dx = player.x - eb.x, dy = player.y - eb.y;
+            const len = Math.max(1, Math.hypot(dx, dy));
+            const spd = Math.hypot(eb.vx||0, eb.vy||140) || 140;
+            const turn = Math.min(1, (eb.turnRate||1.5) * dt);
+            const desiredVx = dx/len*spd, desiredVy = dy/len*spd;
+            eb.vx = (eb.vx||0) + (desiredVx - (eb.vx||0)) * turn;
+            eb.vy = (eb.vy||140) + (desiredVy - (eb.vy||140)) * turn;
+        }
         eb.x += (eb.vx||0) * dt;
         eb.y += (eb.vy||220) * dt;
         if (eb.y > canvas.height || eb.y < -20 || eb.x < -20 || eb.x > canvas.width+20) { enemyBullets.splice(i, 1); continue; }
@@ -891,10 +1184,29 @@ function update(dt, now) {
         }
     }
 
+    // ボスとの接触判定(3層当たり判定): coreに触れたら即死級ダメージ、weaponsはグレイズのみで死なない
+    if (bossIsVulnerable()) {
+        const core = getBossRegionRect(boss, boss.hitboxDef.core);
+        if (player.x < core.x+core.w && player.x+player.w > core.x && player.y < core.y+core.h && player.y+player.h > core.y) {
+            damagePlayer(now);
+        }
+    }
+
     for(let i=particles.length-1; i>=0; i--) {
         let p = particles[i];
         p.x += p.vx; p.y += p.vy; p.life -= dt * 2;
         if(p.life <= 0) particles.splice(i, 1);
+    }
+
+    // 爆発スプライトアニメーションの再生位置を進める(4フレーム再生し終えたら配列から除去)
+    for (let i = explosionAnims.length - 1; i >= 0; i--) {
+        const ea = explosionAnims[i];
+        ea.t += dt;
+        if (ea.t >= EXPLOSION_FRAME_DURATION) {
+            ea.t -= EXPLOSION_FRAME_DURATION;
+            ea.frame++;
+            if (ea.frame >= EXPLOSION_FRAMES.length) { explosionAnims.splice(i, 1); }
+        }
     }
 
     document.getElementById("score").innerText = score;
@@ -902,37 +1214,226 @@ function update(dt, now) {
 
 function applyItem(type) {
     sfx.item();
-    if (type === "power") { player.weaponLv = Math.min(5, player.weaponLv + 1); document.getElementById("weaponlv").innerText = "Lv"+player.weaponLv; score += 50; }
+    if (type === "power") { player.weaponLv = Math.min(5, player.weaponLv + 1); document.getElementById("weaponlv").innerText = "Lv"+player.weaponLv; addScore(50); }
     else if (type === "bomb") {
-        if (bombStock >= 9) { score += 10000; } // 実機準拠: ストック上限超過は得点ボーナスに変換
-        else { bombStock++; updateBombUI(); score += 50; }
+        if (bombStock >= 9) { addScore(10000); } // 実機準拠: ストック上限超過は得点ボーナスに変換
+        else { bombStock++; updateBombUI(); addScore(50); }
     }
     else if (type === "life") { life = Math.min(9, life+1); document.getElementById("life").innerText = life; }
-    else if (type === "score") { score += 300 * (1+Math.floor(comboCount/5)); }
+    else if (type === "score") { addScore(300 * (1+Math.floor(comboCount/5))); }
+}
+
+const BOSS_DRIFT_SPEED = 35;   // 海竜/白虎の通常戦闘時のゆったりした横ドリフト速度(調整用定数)
+const QUEEN_DASH_SPEED = 230;  // 女王バチの急発進速度(調整用定数)
+const BOSS_ENTER_SPEED = 160;  // 登場演出の移動速度(調整用定数)
+
+function destroyWeapon(boss, wpn) {
+    wpn.destroyed = true;
+    const r = getBossRegionRect(boss, wpn);
+    createExplosion(r.x + r.w/2, r.y + r.h/2, "#ffcf6b", 18);
+    sfx.explode();
+    // パーツ破壊と弾幕パターンの連携(follow-up実装): 各ボスのbossAttackXXX関数がboss.weaponsの
+    // destroyedフラグを直接参照しているため、ここで別途処理する必要はない。
+    // 海竜改: turretL/turretR破壊でその砲塔からの射撃が止まる(両方破壊で本体中心にフォールバック)
+    // 陸戦重爆: gunArm破壊で機関砲連射が止まる(重榴弾・バラージは本体由来のため継続)
+    // 要塞戦闘機: head破壊でホーミング弾(索敵システム)が止まる、stinger破壊で狙い撃ち尾針弾が止まる
+}
+
+// ============ ボス固有攻撃パターン(アーキタイプ別) ============
+// 各関数はbossPhase(1/2/3)を「間隔/弾数の強度倍率」として扱い、パターンの形状自体はボスごとに固定する。
+// 破壊されたweaponsサブパーツはここで直接チェックし、そのパーツ由来の攻撃だけを止める。
+
+// 海竜改(battleship archetype, stage1): 「面制圧」型。中央1点ではなく、船体各所(turretL/turretR)から
+// 独立して発射することで画面全体を読ませる。発射直前に短いマズルフラッシュの予告を入れて理不尽さを軽減する。
+function bossAttackSeaDragon(bx, by) {
+    const activeTurrets = boss.weapons.filter(w => (w.id === "turretL" || w.id === "turretR") && !w.destroyed);
+    const origins = activeTurrets.map(w => {
+        const r = getBossRegionRect(boss, w);
+        return { x: r.x + r.w/2, y: r.y + r.h*0.5 };
+    });
+    if (origins.length === 0) origins.push({ x: bx, y: by }); // 両砲塔破壊時は本体中心からのフォールバック
+
+    const fireFrom = (o, vx, vy) => {
+        createExplosion(o.x, o.y, "#fff", 3); // 即時のマズルフラッシュ的パーティクル
+        boss.telegraphs.push({
+            t: 0.15, total: 0.15, kind: "muzzle", x: o.x, y: o.y,
+            onFire: () => enemyBullets.push({ x: o.x, y: o.y, w: 6, h: 14, vx, vy })
+        });
+    };
+    origins.forEach(o => fireFrom(o, 0, 190));
+    if (bossPhase >= 2) origins.forEach(o => fireFrom(o, (Math.random()-0.5)*70, 205)); // phase2: 各砲塔から追加の斜め弾
+    if (bossPhase >= 3) fireFrom({ x: bx, y: by }, (player.x-bx)*0.4, 220); // phase3: さらに本体中心から自機狙いを追加
+}
+
+// 陸戦重爆(tank archetype, stage2): 「重戦車の緩急」型。避けやすいが重い榴弾+gunArmからの速い機関砲連射
+// (gunArm破壊で連射だけ停止)に加え、予告付きの着弾地点バラージ(緊張と解放)を織り交ぜる。
+function bossAttackWhiteTiger(bx, by) {
+    const cy = by - boss.h*0.1;
+    // 1) 重榴弾: 大きく・遅く、読みやすいが直撃は痛い
+    enemyBullets.push({ x: bx, y: cy, w: 14, h: 14, vx: (player.x-bx)*0.15, vy: 105, color: "#ffae42" });
+
+    // 2) gunArmからの速い機関砲連射(gunArm破壊で停止)
+    const gunArm = boss.weapons.find(w => w.id === "gunArm");
+    if (gunArm && !gunArm.destroyed) {
+        const r = getBossRegionRect(boss, gunArm);
+        const ox = r.x + r.w/2, oy = r.y + r.h/2;
+        const shots = bossPhase >= 3 ? 4 : (bossPhase === 2 ? 3 : 2);
+        for (let k = 0; k < shots; k++) {
+            enemyBullets.push({ x: ox, y: oy, w: 4, h: 10, vx: (k - (shots-1)/2) * 18, vy: 320, color: "#f33" });
+        }
+    }
+
+    // 3) テレグラフ付き着弾バラージ(緊張と解放の砲撃): phase2以上で発生確率あり
+    if (bossPhase >= 2 && Math.random() < 0.5) {
+        const tx = Math.max(30, Math.min(canvas.width-30, player.x + (Math.random()-0.5)*60));
+        const ty = Math.min(canvas.height - 60, 260 + Math.random()*80);
+        boss.telegraphs.push({
+            t: 0.7, total: 0.7, kind: "barrage", x: tx, y: ty,
+            onFire: () => {
+                createExplosion(tx, ty, "#ff8040", 14);
+                for (let a=-2; a<=2; a++) enemyBullets.push({ x: tx, y: ty, w: 6, h: 6, vx: a*32, vy: 60, color: "#f33" });
+            }
+        });
+    }
+}
+
+// 要塞戦闘機(flying-robot archetype, stage3): 両翼からの「挟撃(ピンサー)」型に加え、headが健在な間だけ
+// 緩やかなホーミング弾(索敵)、stingerが健在な間だけ尾針の狙い撃ちを追加する。ダッシュ中は呼ばれない(呼び出し元で保証)。
+function bossAttackQueenBee(bx, by) {
+    const wingL = { x: bx - boss.w*0.34, y: by - boss.h*0.05 };
+    const wingR = { x: bx + boss.w*0.34, y: by - boss.h*0.05 };
+    [[wingL,-1], [wingR,1]].forEach(([o, side]) => {
+        boss.telegraphs.push({
+            t: 0.12, total: 0.12, kind: "muzzle", x: o.x, y: o.y,
+            onFire: () => enemyBullets.push({ x: o.x, y: o.y, w: 5, h: 10, vx: side*(bossPhase>=3?90:60), vy: 180 })
+        });
+    });
+
+    const head = boss.weapons.find(w => w.id === "head");
+    if (head && !head.destroyed && bossPhase >= 2) {
+        const r = getBossRegionRect(boss, head);
+        enemyBullets.push({ x: r.x+r.w/2, y: r.y+r.h/2, w: 6, h: 6, vx: 0, vy: 130, homing: true, turnRate: 1.6, color: "#faa" });
+    }
+    const stinger = boss.weapons.find(w => w.id === "stinger");
+    if (stinger && !stinger.destroyed && bossPhase >= 3) {
+        const r = getBossRegionRect(boss, stinger);
+        enemyBullets.push({ x: r.x+r.w/2, y: r.y+r.h/2, w: 6, h: 14, vx: (player.x-bx)*0.3, vy: 230, color: "#fff" });
+    }
+}
+
+// 登場演出(entering)専用の更新。ボスタイプごとの決め打ちの動き。この間は当たり判定なし。
+function updateBossEntrance(dt) {
+    if (boss.def.entranceType === "riseFlip") {
+        // 画面下から上昇 → 画面上端を突き抜けて完全に消える → 180度回転して現れる → 今度は下降して定位置へ
+        if (boss.enterPhase === "ascend") {
+            boss.y -= BOSS_ENTER_SPEED * dt;
+            if (boss.y < -boss.h) {
+                boss.enterPhase = "descend";
+                boss.rotation = Math.PI; // ミラーではなく180度回転(非対称なドラゴン頭部の向きを正しく戻すため)
+            }
+        } else {
+            boss.y += BOSS_ENTER_SPEED * dt;
+            if (boss.y >= 90) {
+                boss.y = 90;
+                boss.rotation = 0;
+                boss.state = "battle";
+            }
+        }
+    } else if (boss.def.entranceType === "driveIn") {
+        // 画面端(左右どちらか)からドリフトしながら侵入し、砂煙を曳く
+        const dir = boss.driveSide < 0 ? 1 : -1;
+        boss.x += dir * BOSS_ENTER_SPEED * dt;
+        if (Math.random() < 0.6) {
+            particles.push({
+                x: boss.x - dir*boss.w*0.42 + (Math.random()-0.5)*16,
+                y: boss.y + boss.h*0.34 + (Math.random()-0.5)*10,
+                vx: -dir*2 - Math.random()*2, vy: (Math.random()-0.5)*1.4,
+                life: 0.9, color: Math.random() < 0.5 ? "#b89968" : "#8a6a3f", size: Math.random()*3+2
+            });
+        }
+        if ((dir > 0 && boss.x >= boss.targetX) || (dir < 0 && boss.x <= boss.targetX)) {
+            boss.x = boss.targetX;
+            boss.state = "battle";
+        }
+    } else { // fadeIn (クイーンバチ): 通常の敵と同様に上から進入するだけ
+        boss.y += BOSS_ENTER_SPEED * 0.6 * dt;
+        if (boss.y >= boss.targetY) {
+            boss.y = boss.targetY;
+            boss.state = "battle";
+            boss.roamState = "hovering";
+            boss.hoverTimer = 0.3;
+        }
+    }
+}
+
+// 女王バチ専用の「ダッシュ→静止」移動(虫らしい断続的な動き)。画面下半分近くまで広く動き回る。
+function updateQueenBeeMovement(dt) {
+    if (!boss.roamState) { boss.roamState = "hovering"; boss.hoverTimer = 0.3; }
+    const margin = 40;
+    if (boss.roamState === "hovering") {
+        boss.hoverTimer -= dt;
+        if (boss.hoverTimer <= 0) {
+            boss.roamTargetX = margin + Math.random() * (canvas.width - margin*2);
+            boss.roamTargetY = 80 + Math.random() * (canvas.height*0.55);
+            boss.roamState = "dashing";
+        }
+    } else {
+        const dx = boss.roamTargetX - boss.x, dy = boss.roamTargetY - boss.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 6) {
+            boss.x = boss.roamTargetX; boss.y = boss.roamTargetY;
+            boss.roamState = "hovering";
+            boss.hoverTimer = 0.4 + Math.random()*0.4;
+        } else {
+            boss.x += (dx/dist) * QUEEN_DASH_SPEED * dt;
+            boss.y += (dy/dist) * QUEEN_DASH_SPEED * dt;
+        }
+    }
 }
 
 function updateBoss(dt, now) {
-    if (boss.entering) {
-        boss.y += 60*dt;
-        if (boss.y >= 90) { boss.y = 90; boss.entering = false; }
+    if (boss.state === "entering") {
+        updateBossEntrance(dt);
         return;
     }
     boss.timer += dt; boss.attackTimer += dt;
-    const speed = 70 + bossPhase * 25;
-    boss.x += speed * boss.dir * dt;
-    if (boss.x > canvas.width - boss.w/2 || boss.x < boss.w/2) boss.dir *= -1;
+
+    if (boss.def.entranceType === "fadeIn") {
+        updateQueenBeeMovement(dt); // 女王バチは専用のダッシュ&ホバー移動
+    } else {
+        boss.x += BOSS_DRIFT_SPEED * boss.dir * dt;
+        if (boss.x > canvas.width - boss.w*0.3 || boss.x < boss.w*0.3) boss.dir *= -1;
+    }
+
+    // ボス固有の弾幕テレグラフ(予告演出)の経過は、移動状態(ダッシュ中等)に関わらず必ず進行させる。
+    // ここで解決しないと、ホバー→ダッシュへ切り替わった瞬間に予告済みの弾が発射されなくなってしまう。
+    if (!boss.telegraphs) boss.telegraphs = [];
+    for (let i = boss.telegraphs.length - 1; i >= 0; i--) {
+        const tg = boss.telegraphs[i];
+        tg.t -= dt;
+        if (tg.t <= 0) { tg.onFire(); boss.telegraphs.splice(i, 1); }
+    }
+
+    // 重要ルール: 女王バチはダッシュ中(移動中)は攻撃しない。ホバー(静止)中のみ攻撃可能。
+    if (boss.def.entranceType === "fadeIn" && boss.roamState !== "hovering") return;
 
     const interval = bossPhase === 1 ? 1.0 : (bossPhase === 2 ? 0.65 : 0.4);
     if (boss.attackTimer > interval) {
         boss.attackTimer = 0;
         const bx = boss.x, by = boss.y + boss.h/2;
-        if (bossPhase === 1) {
-            enemyBullets.push({ x: bx, y: by, w: 6, h: 14, vx: 0, vy: 190 });
-        } else if (bossPhase === 2) {
-            for (let a=-1;a<=1;a++) enemyBullets.push({ x: bx, y: by, w: 6, h: 14, vx: a*75, vy: 200 });
-        } else {
-            for (let a=-2;a<=2;a++) enemyBullets.push({ x: bx, y: by, w: 6, h: 14, vx: a*65, vy: 210 });
-            if (Math.random()<0.5) enemyBullets.push({ x: bx, y: by, w:6, h:14, vx: (player.x-bx)*0.45, vy: 220 });
+        // ボスごとの固有パターン(アーキタイプに沿った弾幕形状)。bossPhaseは各関数内で間隔/弾数の強度倍率として作用する。
+        if (stageNum === 1) bossAttackSeaDragon(bx, by);
+        else if (stageNum === 2) bossAttackWhiteTiger(bx, by);
+        else bossAttackQueenBee(bx, by);
+
+        // Hardループ限定の追加パターン: 全ボス共通(ボス固有パターン実装と衝突しないよう追加のみで既存ロジックは変更しない)。
+        // 全幅に広がる狙い撃ち扇状弾を確率で追加し、通常戦闘に緊張感を上乗せする。
+        if (isHardMode() && Math.random() < 0.4) {
+            for (let a=-3;a<=3;a++) {
+                const dx = (player.x - bx) + a*22, dy = (player.y - by);
+                const len = Math.max(1, Math.hypot(dx,dy));
+                enemyBullets.push({ x: bx, y: by, w: 6, h: 14, vx: dx/len*150, vy: dy/len*150 });
+            }
         }
     }
 }
@@ -954,6 +1455,20 @@ function draw(dt) {
     });
     ctx.globalAlpha = 1.0;
 
+    // 爆発スプライトアニメーション(4フレームの画像アセットが全て読み込めている時のみ、上記パーティクルに重ねて描画)
+    // フレームごとに切り抜きサイズ(縦横比)が異なるため、各フレームの自然な縦横比を保ったまま
+    // インスタンスのsize(目標サイズ)に合わせてスケールし、(x,y)を中心に描画する。
+    if (explosionFramesReady()) {
+        explosionAnims.forEach(ea => {
+            const f = EXPLOSION_FRAMES[ea.frame];
+            if (!f) return;
+            const img = f.img;
+            const scale = ea.size / Math.max(img.width, img.height);
+            const dw = img.width * scale, dh = img.height * scale;
+            ctx.drawImage(img, ea.x - dw/2, ea.y - dh/2, dw, dh);
+        });
+    }
+
     // プレイヤー
     if (player.ship) {
         const flashing = player.invuln > 0 && Math.floor(Date.now()/80)%2===0;
@@ -971,17 +1486,89 @@ function draw(dt) {
         }
     }
 
-    // 敵
+    // 敵(画像アセットがあればそれを描画、失敗/未指定時は既存のドット絵spriteにフォールバック)
     enemies.forEach(e => {
-        const s = ENEMY_SPRITES[e.type], scale = e.w / s.w;
-        drawSprite(s, e.x - e.w/2, e.y - e.h/2, scale, false);
+        const def = ENEMY_DEFS[e.type];
+        if (def.imgLoaded) {
+            const img = def.outlineImg || def.img;
+            const rh = e.h, rw = rh * (img.width / img.height);
+            ctx.imageSmoothingEnabled = true;
+            ctx.drawImage(img, e.x - rw/2, e.y - rh/2, rw, rh);
+            ctx.imageSmoothingEnabled = false;
+        } else {
+            const s = ENEMY_SPRITES[def.spriteKey], scale = e.w / s.w;
+            drawSprite(s, e.x - e.w/2, e.y - e.h/2, scale, false);
+        }
     });
 
     if (boss) {
-        const s = boss.def.sprite, scale = boss.w / s.w;
-        const blink = Math.floor(Date.now()/150)%2===0;
-        drawSprite(s, boss.x - boss.w/2, boss.y - boss.h/2, scale, false);
-        if (blink) { ctx.fillStyle = "#ff0"; ctx.fillRect(boss.x-2, boss.y+boss.h*0.15, 4, 4); }
+        ctx.save();
+        ctx.translate(boss.x, boss.y);
+        if (boss.rotation) ctx.rotate(boss.rotation); // 海竜の登場演出: ミラーではなく180度回転で非対称な頭部の向きを保つ
+        if (boss.def.imgLoaded) {
+            const img = boss.def.outlineImg || boss.def.img;
+            ctx.imageSmoothingEnabled = true;
+            ctx.drawImage(img, -boss.w/2, -boss.h/2, boss.w, boss.h);
+            ctx.imageSmoothingEnabled = false;
+        } else {
+            const s = boss.def.sprite, scale = boss.w / s.w;
+            drawSprite(s, -boss.w/2, -boss.h/2, scale, false);
+        }
+        if (boss.state === "battle") {
+            // 破壊された武装パーツは暗く塗りつぶして視覚的にフィードバック(新規画像素材なし)
+            boss.weapons.forEach(wpn => {
+                if (!wpn.destroyed) return;
+                const r = regionLocalRect(wpn, boss.w, boss.h);
+                ctx.fillStyle = "rgba(10,10,10,0.55)";
+                ctx.fillRect(r.x, r.y, r.w, r.h);
+            });
+        }
+        ctx.restore();
+
+        if (boss.state === "entering") {
+            // CAUTION警告バナー(点滅・画像素材なしでcanvas描画のみ)
+            const blinkOn = Math.floor(Date.now()/250) % 2 === 0;
+            if (blinkOn) {
+                ctx.save();
+                ctx.fillStyle = "rgba(255,40,40,0.75)";
+                ctx.fillRect(0, canvas.height*0.42, canvas.width, 34);
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 20px 'Courier New'";
+                ctx.textAlign = "center";
+                ctx.fillText("CAUTION", canvas.width/2, canvas.height*0.42 + 24);
+                ctx.restore();
+            }
+        } else {
+            const blink = Math.floor(Date.now()/150)%2===0;
+            if (blink) { ctx.fillStyle = "#ff0"; ctx.fillRect(boss.x-2, boss.y+boss.h*0.15, 4, 4); }
+        }
+
+        // ボス固有攻撃のテレグラフ(予告)演出: マズルフラッシュ/着弾バラージの警告リング。
+        // ワールド座標を直接使うため、ボスのtranslate/rotateブロックの外(restore後)で描く。
+        if (boss.telegraphs) {
+            boss.telegraphs.forEach(tg => {
+                const p = 1 - tg.t / tg.total;
+                if (tg.kind === "muzzle") {
+                    if (muzzleFlashFramesReady()) {
+                        // t/totalの進行度pを3フレームに割り付ける(0～1を3等分し、0→1→2と進む)
+                        const frameIdx = Math.min(MUZZLE_FLASH_FRAMES.length - 1, Math.floor(p * MUZZLE_FLASH_FRAMES.length));
+                        const frame = MUZZLE_FLASH_FRAMES[frameIdx];
+                        const muzzleSize = 16; // 銃口の閃光として一瞬光る程度の固定サイズ(既存の円演出の見た目規模を踏襲)
+                        const aspect = frame.img.naturalWidth / frame.img.naturalHeight || 1;
+                        let dw = muzzleSize, dh = muzzleSize;
+                        if (aspect >= 1) { dh = muzzleSize / aspect; } else { dw = muzzleSize * aspect; }
+                        ctx.drawImage(frame.img, tg.x - dw/2, tg.y - dh/2, dw, dh);
+                    } else {
+                        ctx.fillStyle = `rgba(255,255,255,${Math.max(0, 1 - p)})`;
+                        ctx.beginPath(); ctx.arc(tg.x, tg.y, 3 + p*5, 0, Math.PI*2); ctx.fill();
+                    }
+                } else if (tg.kind === "barrage") {
+                    ctx.strokeStyle = `rgba(255,90,40,${0.5 + 0.4*Math.sin(p*24)})`;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.arc(tg.x, tg.y, 8 + p*28, 0, Math.PI*2); ctx.stroke();
+                }
+            });
+        }
     }
 
     // アイテム
@@ -1001,7 +1588,8 @@ function draw(dt) {
         ctx.fillRect(b.x, b.y, b.w, b.h);
     });
     ctx.shadowBlur = 0;
-    ctx.fillStyle = "#f33"; enemyBullets.forEach(eb => ctx.fillRect(eb.x-eb.w/2, eb.y-eb.h/2, eb.w, eb.h));
+    // 敵弾: 種別ごとの色指定(eb.color)があれば使用(White Tigerの重榴弾/機関砲、Queen Beeのホーミング弾等)、無ければ既定の赤
+    enemyBullets.forEach(eb => { ctx.fillStyle = eb.color || "#f33"; ctx.fillRect(eb.x-eb.w/2, eb.y-eb.h/2, eb.w, eb.h); });
 
     if (bombFlashT > 0) { ctx.fillStyle = `rgba(255,220,150,${bombFlashT})`; ctx.fillRect(0,0,canvas.width,canvas.height); }
 
