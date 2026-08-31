@@ -593,13 +593,20 @@ let bgTiles = [];
 // (完全に同じだと単調なので±10%だけ差をつける)、追い越し=重なりが起きないようにした。
 // レーンの横幅もタイルが収まる範囲に制限し、中央の主戦闘レーンやレーン間にはみ出さないようにする。
 const BG_LANES = [0.24, 0.76]; // 画面幅に対する左右レーンの中心位置
-const BG_LANE_MAX_W = 0.30;    // レーンに収まる最大幅(画面幅比)。この幅に収まるようスケールを決める。
+const BG_LANE_MAX_W = 0.45;    // レーンに収まる最大幅(画面幅比)。この幅に収まるようスケールを決める。
 function initBgTiles(stage) {
     bgTiles = [];
     const pool = STAGE_BG_TILE_POOL[stage] || STAGE_BG_TILE_POOL[1];
     const perLane = 2;
     const bandH = (canvas.height * 2) / perLane;
+    // 【重要な検証結果】速度差をタイル1個ずつ個別に持たせる方式(0.9~1.1倍)を60秒シミュレートしたところ、
+    // レーン内の2個が速度差により時間経過で追い越し合い、周期的に重なる事故が実際に発生した
+    // (境行道のような周回コースで速度が違えば必ずいつか追い抜く、という単純な物理の帰結)。
+    // そのため速度差は「タイル毎」ではなく「レーン毎」に1つだけ持たせる方式に変更する。
+    // 同じレーン内の2個は常に同じ速度で流れるため相対位置がズレず、重なりが原理的に起きない。
+    // 大小の違い(depth)は従来通りタイル毎に個別に効かせて、レーン内の単調さを避ける。
     BG_LANES.forEach(xFrac => {
+        const laneSpeedMul = 0.9 + Math.random() * 0.20; // レーンごとに1回だけ決める(0.9~1.1倍)
         for (let i = 0; i < perLane; i++) {
             const key = pool[Math.floor(Math.random() * pool.length)];
             const depth = Math.random(); // 0=far(小さい) ~ 1=near(大きい)。レーン内の大小の差だけに使う。
@@ -614,9 +621,7 @@ function initBgTiles(stage) {
                 y: -canvas.height + i * bandH + Math.random() * bandH * 0.3,
                 scale,
                 depth,
-                // 速度差はごくわずか(0.95~1.05倍)にとどめ、同レーン内で追い越して重なるのを防ぐ。
-                // 全く同じ速度だと単調に見えるとの意見を踏まえ、わずかな差だけ残す。
-                speedMul: 0.95 + depth * 0.10,
+                speedMul: laneSpeedMul,
                 opacity: 0.85 + depth * 0.15, // ほぼ不透明(far:0.85~ near:1.0)。地面/海面の上に乗って見えるように。
                 rotFlip: Math.random() < 0.5 ? -1 : 1 // 左右反転して同じ絵の反復感を減らす
             });
