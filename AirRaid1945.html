@@ -77,6 +77,16 @@
 
             <button onclick="startGame()">SCRAMBLE!</button>
             <p style="color:#666; font-size:10px; margin-top:14px; line-height:1.6;">ドラッグで機体移動・自動射撃<br>アイテムで武器強化・ボムストック<br>ボムボタンで画面全体を薙ぎ払う</p>
+
+            <!-- デバッグ用パスワード入力(4桁): デバッグの度に毎回最初からプレイし直すのが大変という要望により追加。
+                 一般プレイの邪魔にならないよう小さく控えめに配置する。 -->
+            <div style="margin-top:16px; padding-top:12px; border-top:1px solid #222;">
+                <input id="debug-code" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+                       placeholder="CODE" autocomplete="off"
+                       style="width:70px; text-align:center; letter-spacing:4px; font-size:14px; font-family:'Courier New',sans-serif; background:#111; color:#0af; border:1px solid #333; border-radius:4px; padding:6px 4px;">
+                <button class="secondary" style="padding:8px 14px; font-size:11px; vertical-align:middle;" onclick="submitDebugCode()">GO</button>
+                <p id="debug-code-msg" style="color:#888; font-size:10px; height:14px; margin:4px 0 0;"></p>
+            </div>
         </div>
 
         <div id="pause-screen" class="overlay" style="display:none">
@@ -651,7 +661,8 @@ function initBgTiles(stage) {
 function drawBgTiles(dt, baseSpeed) {
     // ボス出現中は挿入した地形画像を隠す方針は維持しつつ、瞬時に消える/現れるのが不自然との
     // 指摘を受け、約0.3秒かけて滑らかにフェードイン/フェードアウトするようにする。
-    const targetAlpha = boss ? 0 : 1;
+    // ただしステージ2だけは「ボスになっても流し続けたい」との要望のため、ボス出現中でも隠さない。
+    const targetAlpha = (boss && stageNum !== 2) ? 0 : 1;
     bgTileFadeAlpha += (targetAlpha - bgTileFadeAlpha) * Math.min(1, dt * 4);
     if (bgTileFadeAlpha < 0.01) return; // ほぼ透明ならスクロール更新も含めて丸ごとスキップ
 
@@ -751,18 +762,9 @@ function drawBackground(dt) {
         ctx.fillStyle = "#2a2818"; ctx.fillRect(0,0,canvas.width,canvas.height);
         drawCloudShadows(dt, 0.14);
         // 川の線(明るい青)は密林画像の下地色と全く馴染まず浮いて見えるため撤去。
-        groundDecor.forEach(d => {
-            d.y += dt * spd;
-            if (d.y > canvas.height + 40) d.y -= canvas.height + 80;
-            const base = d.seed>0.5 ? "#3a6a2a" : "#2f5a22";
-            const dark = d.seed>0.5 ? "#25451a" : "#1e3a16";
-            ctx.fillStyle = base;
-            ctx.beginPath(); ctx.arc(d.x, d.y, d.size*0.55, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = dark;
-            ctx.beginPath(); ctx.arc(d.x-d.size*0.15, d.y-d.size*0.1, d.size*0.22, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(d.x+d.size*0.18, d.y+d.size*0.14, d.size*0.18, 0, Math.PI*2); ctx.fill();
-            if (d.kind === 2) { ctx.fillStyle = "#6a5a3a"; ctx.fillRect(d.x-d.size*0.35, d.y+d.size*0.4, d.size*0.7, d.size*0.22); }
-        });
+        // 元々あった緑の丸(樹冠クラスタ)の簡易ドット装飾も、挿入した実写の森/針葉樹林画像が
+        // 画面のほぼ全体を覆うようになった今は不要かつ見た目が競合するため描画しない
+        // (ステージ1・3は要望通りそのまま残す)。
         // 挿入した地形画像は既存パターンより手前(上)に描く(理由は海ステージのコメント参照)。
         drawBgTiles(dt, spd); // ボス出現中の非表示(フェード)はdrawBgTiles内部で制御する
     } else {
@@ -1050,11 +1052,13 @@ function loadHighScore() {
 }
 loadHighScore();
 
-function startGame() {
+// debugStage/debugLoopはデバッグ用パスワード(submitDebugCode)からの指定用。通常のSCRAMBLE!ボタンからは
+// 引数なしで呼ばれ、これまで通りステージ1・ノーマルから開始する。
+function startGame(debugStage, debugLoop) {
     ensureAudio();
     document.getElementById("start-screen").style.display = "none";
     gameState = "PLAY";
-    score = 0; life = 3; stageNum = 1; loopNum = 1; spGauge = 0; comboCount = 0; bombStock = 3;
+    score = 0; life = 3; stageNum = debugStage || 1; loopNum = debugLoop || 1; spGauge = 0; comboCount = 0; bombStock = 3;
     player.ship = SHIPS[selectedShipIdx];
     player.weaponLv = 1; player.x = 180; player.y = 420; player.invuln = 0; player.bullets = []; player.lastSubShot = 0;
     document.getElementById("life").innerText = life;
@@ -1064,6 +1068,34 @@ function startGame() {
     initStage();
     lastTime = performance.now();
     requestAnimationFrame(gameLoop);
+}
+
+// デバッグ用4桁パスワード。通常プレイの動線には影響しない隠しコマンド。
+// 2222=ステージ2から、3333=ステージ3から、4444/5555/6666=各ステージのハードから、7777=ハイスコアリセット。
+const DEBUG_CODE_MAP = {
+    "2222": [2, 1], "3333": [3, 1],
+    "4444": [1, 2], "5555": [2, 2], "6666": [3, 2]
+};
+function submitDebugCode() {
+    const input = document.getElementById("debug-code");
+    const msg = document.getElementById("debug-code-msg");
+    const code = input.value.trim();
+    input.value = "";
+    if (code === "7777") {
+        highScore = 0;
+        localStorage.setItem("skyRaiders1945HighScore", "0");
+        document.getElementById("highscore").innerText = 0;
+        document.getElementById("start-highscore").innerText = 0;
+        msg.textContent = "HIGH SCORE RESET";
+        return;
+    }
+    const target = DEBUG_CODE_MAP[code];
+    if (target) {
+        msg.textContent = "";
+        startGame(target[0], target[1]);
+    } else {
+        msg.textContent = "INVALID CODE";
+    }
 }
 
 function spawnItem(x, y) {
