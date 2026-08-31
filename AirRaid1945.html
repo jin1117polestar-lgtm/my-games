@@ -585,6 +585,7 @@ buildShipPicker();
 // ============ ステージ背景 ============
 let cloudShadows = [];
 let bgTiles = [];
+let bgTileFadeAlpha = 1; // ボス出現時に0へ、退場後に1へ滑らかに遷移させる(急に消えると違和感が出るため)
 // 背景の地形タイルの配置。
 // 【変遷】当初は自由な位置+大小+速度差(0.6~1.4倍)で配置していたが、「重なって見苦しい」との
 // 指摘を受け原因を検討。速度差があるまま自由配置だと、near(速い)がfar(遅い)に時間経過で
@@ -648,6 +649,12 @@ function initBgTiles(stage) {
 // どのレーンが上に重なるかはその瞬間ごとのy位置関係で決まり、レーンという「線」で
 // 固定されなくなる(自然な前後関係にもなる)。
 function drawBgTiles(dt, baseSpeed) {
+    // ボス出現中は挿入した地形画像を隠す方針は維持しつつ、瞬時に消える/現れるのが不自然との
+    // 指摘を受け、約0.3秒かけて滑らかにフェードイン/フェードアウトするようにする。
+    const targetAlpha = boss ? 0 : 1;
+    bgTileFadeAlpha += (targetAlpha - bgTileFadeAlpha) * Math.min(1, dt * 4);
+    if (bgTileFadeAlpha < 0.01) return; // ほぼ透明ならスクロール更新も含めて丸ごとスキップ
+
     bgTiles.forEach(t => {
         const speed = baseSpeed * t.speedMul;
         t.y += dt * speed;
@@ -660,7 +667,7 @@ function drawBgTiles(dt, baseSpeed) {
         const img = def.img;
         const dw = img.naturalWidth * t.scale, dh = img.naturalHeight * t.scale;
         ctx.save();
-        ctx.globalAlpha = t.opacity;
+        ctx.globalAlpha = t.opacity * bgTileFadeAlpha;
         ctx.translate(t.x, t.y);
         ctx.scale(t.rotFlip, 1);
         ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
@@ -734,19 +741,16 @@ function drawBackground(dt) {
         });
         // 挿入した地形画像は、既存の波/雲影/艦影パターンより手前(上)に描くことで「海に浮かぶ島」
         // として見せる(逆にすると波の下に沈んで見えてしまう)。ボス戦中は画面を単純にするため出さない。
-        if (!boss) drawBgTiles(dt, spd);
+        drawBgTiles(dt, spd); // ボス出現中の非表示(フェード)はdrawBgTiles内部で制御する
     } else if (stageNum === 2) {
-        // 島(密林): 地形パッチ + 樹冠クラスタ + 川
-        // 色相をオリーブ寄りから青緑寄りにずらし、緑迷彩の自機との衝突を避ける(縁取りに加えた補完的な調整)
-        ctx.fillStyle = "#1c4a3a"; ctx.fillRect(0,0,canvas.width,canvas.height);
+        // 密林: 挿入した森/針葉樹林の画像が画面のほぼ全体を覆う密度で流れるため、
+        // 下地の色はその画像群と衝突しないよう、実際のタイル画像を計測した平均色
+        // (forest/pine_forestの不透明画素の平均 ≈ #3c3820)に合わせた暗いオリーブ系にする。
+        // 以前の青緑(#1c4a3a)は挿入画像追加前の配色で、明るい川の線(青)ともども
+        // 「浮いて見える」原因になっていたため、両方ともここで整合させる/取り除く。
+        ctx.fillStyle = "#2a2818"; ctx.fillRect(0,0,canvas.width,canvas.height);
         drawCloudShadows(dt, 0.14);
-        ctx.strokeStyle = "rgba(120,170,220,0.35)"; ctx.lineWidth = 10;
-        ctx.beginPath();
-        for (let y=-40;y<canvas.height+40;y+=20) {
-            const x = canvas.width*0.5 + Math.sin(y*0.02 + scrollY*0.01)*90;
-            if (y===-40) ctx.moveTo(x, y+sy); else ctx.lineTo(x, y+sy);
-        }
-        ctx.stroke();
+        // 川の線(明るい青)は密林画像の下地色と全く馴染まず浮いて見えるため撤去。
         groundDecor.forEach(d => {
             d.y += dt * spd;
             if (d.y > canvas.height + 40) d.y -= canvas.height + 80;
@@ -760,7 +764,7 @@ function drawBackground(dt) {
             if (d.kind === 2) { ctx.fillStyle = "#6a5a3a"; ctx.fillRect(d.x-d.size*0.35, d.y+d.size*0.4, d.size*0.7, d.size*0.22); }
         });
         // 挿入した地形画像は既存パターンより手前(上)に描く(理由は海ステージのコメント参照)。
-        if (!boss) drawBgTiles(dt, spd);
+        drawBgTiles(dt, spd); // ボス出現中の非表示(フェード)はdrawBgTiles内部で制御する
     } else {
         // 要塞基地: タイル床 + リベット + 砲台 + レーダー + 警戒ライン
         ctx.fillStyle = "#26262c"; ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -793,7 +797,7 @@ function drawBackground(dt) {
             }
         });
         // 挿入した地形画像は既存パターンより手前(上)に描く(理由は海ステージのコメント参照)。
-        if (!boss) drawBgTiles(dt, spd);
+        drawBgTiles(dt, spd); // ボス出現中の非表示(フェード)はdrawBgTiles内部で制御する
     }
 }
 
