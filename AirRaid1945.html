@@ -607,9 +607,11 @@ const STAGE2_DENSE_POOL = [
 // 高さより狭い値に固定し、常にレーン内で次のタイルが隙間なく(むしろ少し重なるくらい)
 // 連続して流れてくるようにする(個数は間隔から自動算出されるため、多め・可変になる)。
 const BG_STAGE_CONFIG = {
-    1: { lanes: [0.24, 0.76], perLane: 2, pool: STAGE_BG_TILE_POOL[1] },
-    2: { lanes: [0.17, 0.5, 0.83], bandH: 110, pool: STAGE2_DENSE_POOL },
-    3: { lanes: [0.24, 0.76], perLane: 2, pool: STAGE_BG_TILE_POOL[3] }
+    1: { lanes: [0.24, 0.76], perLane: 2, pool: STAGE_BG_TILE_POOL[1], xJitter: 10 },
+    // 「3レーン流しているのがあからさまに見える(レーンごとに列ができて融合していない)」との指摘により、
+    // 横位置のばらつき(xJitter)を大幅に広げ、隣のレーンの領域まで踏み込ませることで列の境目を崩す。
+    2: { lanes: [0.17, 0.5, 0.83], bandH: 110, pool: STAGE2_DENSE_POOL, xJitter: 60 },
+    3: { lanes: [0.24, 0.76], perLane: 2, pool: STAGE_BG_TILE_POOL[3], xJitter: 10 }
 };
 function initBgTiles(stage) {
     bgTiles = [];
@@ -627,7 +629,7 @@ function initBgTiles(stage) {
             const depth = (sizeFrac - BG_TILE_SIZE_MIN) / (BG_TILE_SIZE_MAX - BG_TILE_SIZE_MIN); // 不透明度用(0~1)
             bgTiles.push({
                 key,
-                x: xFrac * canvas.width + (Math.random() - 0.5) * 10, // レーン内で少しだけ横位置をばらす
+                x: xFrac * canvas.width + (Math.random() - 0.5) * 2 * (cfg.xJitter || 10), // 横位置のばらつき
                 y: -canvas.height + i * bandH + Math.random() * bandH * 0.3,
                 scale,
                 depth,
@@ -639,13 +641,22 @@ function initBgTiles(stage) {
     });
 }
 // 背景タイルのスクロール移動+描画。
+// 【重なり順の指摘】3レーン化したステージ2で「常に中央>右>左の順で重なって見え、レーンで
+// 分かれているのがあからさまに見える」との指摘を受けた。原因は、bgTiles配列の並び順(=レーンを
+// 追加した順)がそのまま毎フレーム固定の描画順(=重なり順)になっていたため。
+// 修正: 描画直前にy座標(画面の下ほど自機に近い=手前)で並べ替えてから描く。これにより、
+// どのレーンが上に重なるかはその瞬間ごとのy位置関係で決まり、レーンという「線」で
+// 固定されなくなる(自然な前後関係にもなる)。
 function drawBgTiles(dt, baseSpeed) {
     bgTiles.forEach(t => {
-        const def = BG_TILE_DEFS[t.key];
-        if (!def || !def.loaded) return;
         const speed = baseSpeed * t.speedMul;
         t.y += dt * speed;
         if (t.y > canvas.height + 300) t.y -= canvas.height * 2;
+    });
+    const sorted = [...bgTiles].sort((a, b) => a.y - b.y); // yが大きい(手前)ほど後に描いて上に重ねる
+    sorted.forEach(t => {
+        const def = BG_TILE_DEFS[t.key];
+        if (!def || !def.loaded) return;
         const img = def.img;
         const dw = img.naturalWidth * t.scale, dh = img.naturalHeight * t.scale;
         ctx.save();
