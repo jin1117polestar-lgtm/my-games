@@ -585,41 +585,40 @@ buildShipPicker();
 // ============ ステージ背景 ============
 let cloudShadows = [];
 let bgTiles = [];
-// 背景の地形タイルを散りばめる。
-// 【変遷】当初は自由な位置+大小+速度差(0.6~1.4倍)で配置していたが、「重なって見苦しい」との
-// 指摘を受け原因を検討。速度差があるまま自由配置だと、near(速い)がfar(遅い)に時間経過で
-// 追いついて重なる、という事故が起きやすいと判明。対策として、画面を2本の固定レーン(左右)に
-// 分け、各レーンの中でだけ大小を流し、レーン内の複数個は最初からほぼ同じ速度にして
-// (完全に同じだと単調なので±10%だけ差をつける)、追い越し=重なりが起きないようにした。
-// レーンの横幅もタイルが収まる範囲に制限し、中央の主戦闘レーンやレーン間にはみ出さないようにする。
-// タイルの見た目サイズは画面幅に対する比率で直接指定する(全ステージ共通、35~50%でランダム)。
-const BG_TILE_SIZE_MIN = 0.35;
-const BG_TILE_SIZE_MAX = 0.50;
-// ステージ2限定: 「背景はたまに出てくる程度」の他ステージと違い、密林の中を飛んでいる感じを
-// 出すため背景そのものをメインにしたいとの要望。森・針葉樹林を8割、山脈・渓谷を2割の比率にする。
-const STAGE2_DENSE_POOL = ["forest", "pine_forest", "forest", "pine_forest", "forest", "pine_forest", "forest", "pine_forest", "mountain", "canyon"]; // 8:2
-// ステージごとのレーン構成(中心位置の配列)とレーンあたりの個数。
-// ステージ2は「流れる挿入画像を多く」との要望により3レーン・レーンあたり3個に増量。
-const BG_STAGE_CONFIG = {
-    1: { lanes: [0.24, 0.76], perLane: 2, pool: STAGE_BG_TILE_POOL[1] },
-    2: { lanes: [0.17, 0.5, 0.83], perLane: 3, pool: STAGE2_DENSE_POOL },
-    3: { lanes: [0.24, 0.76], perLane: 2, pool: STAGE_BG_TILE_POOL[3] }
-};
-// 背景タイルの配置。
+// 背景の地形タイルの配置。
 // 【変遷】当初は自由な位置+大小+速度差(0.6~1.4倍)で配置していたが、「重なって見苦しい」との
 // 指摘を受け原因を検討。速度差があるまま自由配置だと、near(速い)がfar(遅い)に時間経過で
 // 追いついて重なる、という事故が起きやすいと判明。対策として、画面をレーンに分け、各レーンの
 // 中でだけ大小を流し、同じレーン内の複数個は完全に同じ速度にする(タイル毎ではなくレーン毎に
 // 1つだけ速度を持たせる)ことで、追い越し=重なりが原理的に起きないようにした。
-// ステージ2は3レーンに増やした関係で、レーン同士(特に中央レーン)が横方向に重なることは
-// 許容する(「背景が主役」という位置づけのステージなので、密に見える方が狙い通り)。
+// タイルの見た目サイズは画面幅に対する比率で直接指定する(全ステージ共通、35~50%でランダム)。
+const BG_TILE_SIZE_MIN = 0.35;
+const BG_TILE_SIZE_MAX = 0.50;
+// ステージ2限定: 「背景はたまに出てくる程度」の他ステージと違い、密林の中を飛んでいる感じを
+// 出すため背景そのものをメインにしたいとの要望。森・針葉樹林が9割、山脈・渓谷が1割(各5%)の比率。
+const STAGE2_DENSE_POOL = [
+    "forest","forest","forest","forest","forest","forest","forest","forest","forest",
+    "pine_forest","pine_forest","pine_forest","pine_forest","pine_forest","pine_forest","pine_forest","pine_forest","pine_forest",
+    "mountain", "canyon"
+]; // forest 9 + pine_forest 9 + mountain 1 + canyon 1 = 20枚中18枚(90%)が森/針葉樹林
+// ステージごとのレーン構成。
+// perLane(個数固定)かbandH(間隔固定、個数は自動算出)のどちらかを指定する。
+// ステージ2は「挿入画像が途切れず流れ続ける」との要望のため、間隔(bandH)をタイルの見た目の
+// 高さより狭い値に固定し、常にレーン内で次のタイルが隙間なく(むしろ少し重なるくらい)
+// 連続して流れてくるようにする(個数は間隔から自動算出されるため、多め・可変になる)。
+const BG_STAGE_CONFIG = {
+    1: { lanes: [0.24, 0.76], perLane: 2, pool: STAGE_BG_TILE_POOL[1] },
+    2: { lanes: [0.17, 0.5, 0.83], bandH: 110, pool: STAGE2_DENSE_POOL },
+    3: { lanes: [0.24, 0.76], perLane: 2, pool: STAGE_BG_TILE_POOL[3] }
+};
 function initBgTiles(stage) {
     bgTiles = [];
     const cfg = BG_STAGE_CONFIG[stage] || BG_STAGE_CONFIG[1];
-    const bandH = (canvas.height * 2) / cfg.perLane;
+    const bandH = cfg.bandH || (canvas.height * 2) / cfg.perLane;
+    const perLane = cfg.perLane || Math.ceil((canvas.height * 2) / cfg.bandH);
     cfg.lanes.forEach(xFrac => {
         const laneSpeedMul = 0.9 + Math.random() * 0.20; // レーンごとに1回だけ決める(0.9~1.1倍)
-        for (let i = 0; i < cfg.perLane; i++) {
+        for (let i = 0; i < perLane; i++) {
             const key = cfg.pool[Math.floor(Math.random() * cfg.pool.length)];
             const def = BG_TILE_DEFS[key];
             const naturalW = (def && def.img && def.img.naturalWidth) ? def.img.naturalWidth : 480;
