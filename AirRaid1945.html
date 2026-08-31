@@ -588,28 +588,34 @@ let bgTiles = [];
 // 背景の地形タイルを散りばめる。「同じタイルでも大小をつけて奥行きを出す」方針により、
 // 大きい(near)ものほど手前・くっきり・速く流れ、小さい(far)ものほど奥・控えめ・ゆっくり流れる
 // (サイズと不透明度・スクロール速度を連動させた簡易パースで立体感を出す)。
-// 自機や弾の視認性を邪魔しないよう、不透明度は抑えめにし、画面中央の主戦闘レーンには
-// 大きい(near)ものを避けて配置する。
+// 実在のシューティングゲーム(1943/DoDonPachi等の参考画像)をリサーチした結果、地形は
+// 半透明の飾りではなく「地面/海面の上にほぼ不透明に乗っている1枚絵」で、しかも同時に
+// 複数個重ならない・まばらに配置されている、という共通点が見えた。これに合わせて、
+// (1)不透明度をほぼ不透明寄りに引き上げ、(2)個数を減らし縦方向に間隔を強制して重なりを防ぎ、
+// (3)サイズ全体を8割に縮小、の3点を修正する。
 function initBgTiles(stage) {
     bgTiles = [];
     const pool = STAGE_BG_TILE_POOL[stage] || STAGE_BG_TILE_POOL[1];
-    const count = 5;
+    const count = 3;
+    // 縦方向をcount等分した帯の中にそれぞれ1個ずつ配置し、ワイプアラウンド1周(canvas.height*2)の中で
+    // 隣同士が近すぎて重なることがないようにする。
+    const bandH = (canvas.height * 2) / count;
     for (let i = 0; i < count; i++) {
         const key = pool[Math.floor(Math.random() * pool.length)];
         const depth = Math.random(); // 0=far(奥) ~ 1=near(手前)
-        const scale = 0.35 + depth * 0.55; // far:0.35~ near:~0.90
+        const scale = (0.35 + depth * 0.55) * 0.8; // 全体を8割に縮小(far:0.28~ near:~0.72)
         // 中央の主戦闘レーン(画面幅の中央60%程度)は、near(大きい)ものが陣取ると弾/敵が見づらくなるため、
         // depthが高い(手前に大きく見える)ものほど左右端寄りに追いやる。
-        const laneBias = depth * 0.55; // depthが大きいほど中央から離す
+        const laneBias = depth * 0.55;
         const side = Math.random() < 0.5 ? -1 : 1;
         const xCenterFrac = 0.5 + side * (Math.random() * (0.5 - laneBias) + laneBias * 0.5);
         bgTiles.push({
             key,
             x: xCenterFrac * canvas.width,
-            y: Math.random() * canvas.height * 2 - canvas.height,
+            y: -canvas.height + i * bandH + Math.random() * bandH * 0.5,
             scale,
             depth,
-            opacity: 0.55 + depth * 0.35, // far:0.55~ near:0.90 (自機/弾より薄く保つ)
+            opacity: 0.85 + depth * 0.15, // ほぼ不透明(far:0.85~ near:1.0)。地面/海面の上に乗って見えるように。
             rotFlip: Math.random() < 0.5 ? -1 : 1 // 左右反転して同じ絵の反復感を減らす
         });
     }
@@ -622,7 +628,7 @@ function drawBgTiles(dt, baseSpeed) {
         if (!def || !def.loaded) return;
         const speed = baseSpeed * (0.6 + t.depth * 0.8); // far:0.6倍~ near:1.4倍
         t.y += dt * speed;
-        if (t.y > canvas.height + 300) t.y -= canvas.height + 600;
+        if (t.y > canvas.height + 300) t.y -= canvas.height * 2;
         const img = def.img;
         const dw = img.naturalWidth * t.scale, dh = img.naturalHeight * t.scale;
         ctx.save();
@@ -667,7 +673,6 @@ function drawBackground(dt) {
         const grad = ctx.createLinearGradient(0,0,0,canvas.height);
         grad.addColorStop(0,"#0d4a80"); grad.addColorStop(1,"#082a52");
         ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width,canvas.height);
-        drawBgTiles(dt, spd);
         drawCloudShadows(dt, 0.10);
         for (let y = -40; y < canvas.height+40; y += 40) {
             ctx.strokeStyle = "rgba(180,220,255,0.22)"; ctx.lineWidth = 2;
@@ -699,11 +704,13 @@ function drawBackground(dt) {
             ctx.fillStyle = "#1a2420";
             ctx.fillRect(d.x-d.size*0.05, d.y-d.size*0.75, d.size*0.1, d.size*0.22);
         });
+        // 挿入した地形画像は、既存の波/雲影/艦影パターンより手前(上)に描くことで「海に浮かぶ島」
+        // として見せる(逆にすると波の下に沈んで見えてしまう)。ボス戦中は画面を単純にするため出さない。
+        if (!boss) drawBgTiles(dt, spd);
     } else if (stageNum === 2) {
         // 島(密林): 地形パッチ + 樹冠クラスタ + 川
         // 色相をオリーブ寄りから青緑寄りにずらし、緑迷彩の自機との衝突を避ける(縁取りに加えた補完的な調整)
         ctx.fillStyle = "#1c4a3a"; ctx.fillRect(0,0,canvas.width,canvas.height);
-        drawBgTiles(dt, spd);
         drawCloudShadows(dt, 0.14);
         ctx.strokeStyle = "rgba(120,170,220,0.35)"; ctx.lineWidth = 10;
         ctx.beginPath();
@@ -724,10 +731,11 @@ function drawBackground(dt) {
             ctx.beginPath(); ctx.arc(d.x+d.size*0.18, d.y+d.size*0.14, d.size*0.18, 0, Math.PI*2); ctx.fill();
             if (d.kind === 2) { ctx.fillStyle = "#6a5a3a"; ctx.fillRect(d.x-d.size*0.35, d.y+d.size*0.4, d.size*0.7, d.size*0.22); }
         });
+        // 挿入した地形画像は既存パターンより手前(上)に描く(理由は海ステージのコメント参照)。
+        if (!boss) drawBgTiles(dt, spd);
     } else {
         // 要塞基地: タイル床 + リベット + 砲台 + レーダー + 警戒ライン
         ctx.fillStyle = "#26262c"; ctx.fillRect(0,0,canvas.width,canvas.height);
-        drawBgTiles(dt, spd);
         drawCloudShadows(dt, 0.16);
         ctx.strokeStyle = "rgba(255,80,80,0.12)"; ctx.lineWidth = 1;
         for (let y=-40;y<canvas.height+40;y+=40) { ctx.beginPath(); ctx.moveTo(0, y+sy); ctx.lineTo(canvas.width, y+sy); ctx.stroke(); }
@@ -756,6 +764,8 @@ function drawBackground(dt) {
                 ctx.fillStyle = "#f33"; ctx.fillRect(d.x-d.size*0.15, d.y-d.size*0.15, d.size*0.3, d.size*0.3);
             }
         });
+        // 挿入した地形画像は既存パターンより手前(上)に描く(理由は海ステージのコメント参照)。
+        if (!boss) drawBgTiles(dt, spd);
     }
 }
 
