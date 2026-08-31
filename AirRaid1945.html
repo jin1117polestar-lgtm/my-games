@@ -592,29 +592,40 @@ let bgTiles = [];
 // 分け、各レーンの中でだけ大小を流し、レーン内の複数個は最初からほぼ同じ速度にして
 // (完全に同じだと単調なので±10%だけ差をつける)、追い越し=重なりが起きないようにした。
 // レーンの横幅もタイルが収まる範囲に制限し、中央の主戦闘レーンやレーン間にはみ出さないようにする。
-const BG_LANES = [0.24, 0.76]; // 画面幅に対する左右レーンの中心位置
-const BG_LANE_MAX_W = 0.45;    // レーンに収まる最大幅(画面幅比)。この幅に収まるようスケールを決める。
+// タイルの見た目サイズは画面幅に対する比率で直接指定する(全ステージ共通、35~50%でランダム)。
+const BG_TILE_SIZE_MIN = 0.35;
+const BG_TILE_SIZE_MAX = 0.50;
+// ステージ2限定: 「背景はたまに出てくる程度」の他ステージと違い、密林の中を飛んでいる感じを
+// 出すため背景そのものをメインにしたいとの要望。森・針葉樹林を8割、山脈・渓谷を2割の比率にする。
+const STAGE2_DENSE_POOL = ["forest", "pine_forest", "forest", "pine_forest", "forest", "pine_forest", "forest", "pine_forest", "mountain", "canyon"]; // 8:2
+// ステージごとのレーン構成(中心位置の配列)とレーンあたりの個数。
+// ステージ2は「流れる挿入画像を多く」との要望により3レーン・レーンあたり3個に増量。
+const BG_STAGE_CONFIG = {
+    1: { lanes: [0.24, 0.76], perLane: 2, pool: STAGE_BG_TILE_POOL[1] },
+    2: { lanes: [0.17, 0.5, 0.83], perLane: 3, pool: STAGE2_DENSE_POOL },
+    3: { lanes: [0.24, 0.76], perLane: 2, pool: STAGE_BG_TILE_POOL[3] }
+};
+// 背景タイルの配置。
+// 【変遷】当初は自由な位置+大小+速度差(0.6~1.4倍)で配置していたが、「重なって見苦しい」との
+// 指摘を受け原因を検討。速度差があるまま自由配置だと、near(速い)がfar(遅い)に時間経過で
+// 追いついて重なる、という事故が起きやすいと判明。対策として、画面をレーンに分け、各レーンの
+// 中でだけ大小を流し、同じレーン内の複数個は完全に同じ速度にする(タイル毎ではなくレーン毎に
+// 1つだけ速度を持たせる)ことで、追い越し=重なりが原理的に起きないようにした。
+// ステージ2は3レーンに増やした関係で、レーン同士(特に中央レーン)が横方向に重なることは
+// 許容する(「背景が主役」という位置づけのステージなので、密に見える方が狙い通り)。
 function initBgTiles(stage) {
     bgTiles = [];
-    const pool = STAGE_BG_TILE_POOL[stage] || STAGE_BG_TILE_POOL[1];
-    const perLane = 2;
-    const bandH = (canvas.height * 2) / perLane;
-    // 【重要な検証結果】速度差をタイル1個ずつ個別に持たせる方式(0.9~1.1倍)を60秒シミュレートしたところ、
-    // レーン内の2個が速度差により時間経過で追い越し合い、周期的に重なる事故が実際に発生した
-    // (境行道のような周回コースで速度が違えば必ずいつか追い抜く、という単純な物理の帰結)。
-    // そのため速度差は「タイル毎」ではなく「レーン毎」に1つだけ持たせる方式に変更する。
-    // 同じレーン内の2個は常に同じ速度で流れるため相対位置がズレず、重なりが原理的に起きない。
-    // 大小の違い(depth)は従来通りタイル毎に個別に効かせて、レーン内の単調さを避ける。
-    BG_LANES.forEach(xFrac => {
+    const cfg = BG_STAGE_CONFIG[stage] || BG_STAGE_CONFIG[1];
+    const bandH = (canvas.height * 2) / cfg.perLane;
+    cfg.lanes.forEach(xFrac => {
         const laneSpeedMul = 0.9 + Math.random() * 0.20; // レーンごとに1回だけ決める(0.9~1.1倍)
-        for (let i = 0; i < perLane; i++) {
-            const key = pool[Math.floor(Math.random() * pool.length)];
-            const depth = Math.random(); // 0=far(小さい) ~ 1=near(大きい)。レーン内の大小の差だけに使う。
-            // レーンの最大幅に収まるスケール(far:6割~ near:10割の幅)を、実際の画像の横幅から逆算する。
+        for (let i = 0; i < cfg.perLane; i++) {
+            const key = cfg.pool[Math.floor(Math.random() * cfg.pool.length)];
             const def = BG_TILE_DEFS[key];
             const naturalW = (def && def.img && def.img.naturalWidth) ? def.img.naturalWidth : 480;
-            const laneMaxWpx = canvas.width * BG_LANE_MAX_W;
-            const scale = (laneMaxWpx * (0.6 + depth * 0.4)) / naturalW;
+            const sizeFrac = BG_TILE_SIZE_MIN + Math.random() * (BG_TILE_SIZE_MAX - BG_TILE_SIZE_MIN); // 35~50%
+            const scale = (canvas.width * sizeFrac) / naturalW;
+            const depth = (sizeFrac - BG_TILE_SIZE_MIN) / (BG_TILE_SIZE_MAX - BG_TILE_SIZE_MIN); // 不透明度用(0~1)
             bgTiles.push({
                 key,
                 x: xFrac * canvas.width + (Math.random() - 0.5) * 10, // レーン内で少しだけ横位置をばらす
@@ -622,7 +633,7 @@ function initBgTiles(stage) {
                 scale,
                 depth,
                 speedMul: laneSpeedMul,
-                opacity: 0.85 + depth * 0.15, // ほぼ不透明(far:0.85~ near:1.0)。地面/海面の上に乗って見えるように。
+                opacity: 0.85 + depth * 0.15, // ほぼ不透明(小さめ:0.85~ 大きめ:1.0)。地面/海面の上に乗って見えるように。
                 rotFlip: Math.random() < 0.5 ? -1 : 1 // 左右反転して同じ絵の反復感を減らす
             });
         }
