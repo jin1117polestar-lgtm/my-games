@@ -348,8 +348,9 @@ const BOSSES = [
       hitboxDef: {
           core: { cx: 0, cy: 0.0, w: 0.42, h: 0.92 },
           weapons: [
-              { id: "turretL", cx: -0.32, cy: 0.02, w: 0.36, h: 0.62, maxHp: 30 },
-              { id: "turretR", cx: 0.32, cy: 0.02, w: 0.36, h: 0.62, maxHp: 30 }
+              // 「両脇の大砲の破壊が簡単すぎる」との指摘によりHPを30→90に引き上げ(プレイテストで再調整前提)。
+              { id: "turretL", cx: -0.32, cy: 0.02, w: 0.36, h: 0.62, maxHp: 90 },
+              { id: "turretR", cx: 0.32, cy: 0.02, w: 0.36, h: 0.62, maxHp: 90 }
           ]
       },
       sprite: buildSprite(BOSS_TEMPLATE, { b:"#2f6e6e", h:"#7fd9d9", s:"#123333", g:"#0a1e1e", c:"#aef2ff", w:"#4a9a9a", t:"#ffe14d", r:"#ff5555", p:"#222222" }) },
@@ -391,6 +392,36 @@ BOSSES.forEach(def => {
     img.src = def.imgSrc;
     def.img = img;
 });
+
+// 背景装飾タイル(地形画像)。ステージごとの雰囲気に合わせてカテゴリー分けし、
+// スクロールする「奥の風景」として遠近感つきで散りばめる(詳細はinitBgTiles参照)。
+const BG_TILE_DEFS = {
+    rocky_island: { src: "assets/bg/rocky_island.png" },
+    coastal_fortress_a: { src: "assets/bg/coastal_fortress_a.png" },
+    coastal_fortress_b: { src: "assets/bg/coastal_fortress_b.png" },
+    tropical_atoll: { src: "assets/bg/tropical_atoll.png" },
+    forest: { src: "assets/bg/forest.png" },
+    mountain: { src: "assets/bg/mountain.png" },
+    canyon: { src: "assets/bg/canyon.png" },
+    pine_forest: { src: "assets/bg/pine_forest.png" },
+    military_base_a: { src: "assets/bg/military_base_a.png" },
+    military_base_b: { src: "assets/bg/military_base_b.png" }
+};
+Object.values(BG_TILE_DEFS).forEach(def => {
+    def.loaded = false;
+    const img = new Image();
+    img.onload = () => { def.loaded = true; };
+    img.onerror = () => { def.loaded = false; };
+    img.src = def.src;
+    def.img = img;
+});
+// ステージ1=海洋、ステージ2=陸上、ステージ3=要塞基地、というボスのテーマと合わせた分類
+// (詳細はチームでの分類検討を参照。雪山・湿地は現状未使用ステージ用の候補として保留)。
+const STAGE_BG_TILE_POOL = {
+    1: ["rocky_island", "coastal_fortress_a", "coastal_fortress_b", "tropical_atoll"],
+    2: ["forest", "mountain", "canyon", "pine_forest"],
+    3: ["military_base_a", "military_base_b"]
+};
 
 // ============ 爆発エフェクト(汎用4フレームスプライトアニメーション) ============
 // 自機/敵/ボス画像と同じ imgLoaded/onerror フォールバックの考え方を踏襲する。
@@ -553,6 +584,56 @@ buildShipPicker();
 
 // ============ ステージ背景 ============
 let cloudShadows = [];
+let bgTiles = [];
+// 背景の地形タイルを散りばめる。「同じタイルでも大小をつけて奥行きを出す」方針により、
+// 大きい(near)ものほど手前・くっきり・速く流れ、小さい(far)ものほど奥・控えめ・ゆっくり流れる
+// (サイズと不透明度・スクロール速度を連動させた簡易パースで立体感を出す)。
+// 自機や弾の視認性を邪魔しないよう、不透明度は抑えめにし、画面中央の主戦闘レーンには
+// 大きい(near)ものを避けて配置する。
+function initBgTiles(stage) {
+    bgTiles = [];
+    const pool = STAGE_BG_TILE_POOL[stage] || STAGE_BG_TILE_POOL[1];
+    const count = 5;
+    for (let i = 0; i < count; i++) {
+        const key = pool[Math.floor(Math.random() * pool.length)];
+        const depth = Math.random(); // 0=far(奥) ~ 1=near(手前)
+        const scale = 0.35 + depth * 0.55; // far:0.35~ near:~0.90
+        // 中央の主戦闘レーン(画面幅の中央60%程度)は、near(大きい)ものが陣取ると弾/敵が見づらくなるため、
+        // depthが高い(手前に大きく見える)ものほど左右端寄りに追いやる。
+        const laneBias = depth * 0.55; // depthが大きいほど中央から離す
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const xCenterFrac = 0.5 + side * (Math.random() * (0.5 - laneBias) + laneBias * 0.5);
+        bgTiles.push({
+            key,
+            x: xCenterFrac * canvas.width,
+            y: Math.random() * canvas.height * 2 - canvas.height,
+            scale,
+            depth,
+            opacity: 0.55 + depth * 0.35, // far:0.55~ near:0.90 (自機/弾より薄く保つ)
+            rotFlip: Math.random() < 0.5 ? -1 : 1 // 左右反転して同じ絵の反復感を減らす
+        });
+    }
+}
+// 背景タイルのスクロール移動+描画。near(scaleが大きい)ほど速く流れるようにして、
+// サイズ差に加えて速度差でも遠近感(近いものほど速く過ぎ去る)を補強する。
+function drawBgTiles(dt, baseSpeed) {
+    bgTiles.forEach(t => {
+        const def = BG_TILE_DEFS[t.key];
+        if (!def || !def.loaded) return;
+        const speed = baseSpeed * (0.6 + t.depth * 0.8); // far:0.6倍~ near:1.4倍
+        t.y += dt * speed;
+        if (t.y > canvas.height + 300) t.y -= canvas.height + 600;
+        const img = def.img;
+        const dw = img.naturalWidth * t.scale, dh = img.naturalHeight * t.scale;
+        ctx.save();
+        ctx.globalAlpha = t.opacity;
+        ctx.translate(t.x, t.y);
+        ctx.scale(t.rotFlip, 1);
+        ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
+        ctx.restore();
+    });
+    ctx.globalAlpha = 1.0;
+}
 function initGroundDecor(stage) {
     groundDecor = [];
     cloudShadows = [];
@@ -586,6 +667,7 @@ function drawBackground(dt) {
         const grad = ctx.createLinearGradient(0,0,0,canvas.height);
         grad.addColorStop(0,"#0d4a80"); grad.addColorStop(1,"#082a52");
         ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width,canvas.height);
+        drawBgTiles(dt, spd);
         drawCloudShadows(dt, 0.10);
         for (let y = -40; y < canvas.height+40; y += 40) {
             ctx.strokeStyle = "rgba(180,220,255,0.22)"; ctx.lineWidth = 2;
@@ -621,6 +703,7 @@ function drawBackground(dt) {
         // 島(密林): 地形パッチ + 樹冠クラスタ + 川
         // 色相をオリーブ寄りから青緑寄りにずらし、緑迷彩の自機との衝突を避ける(縁取りに加えた補完的な調整)
         ctx.fillStyle = "#1c4a3a"; ctx.fillRect(0,0,canvas.width,canvas.height);
+        drawBgTiles(dt, spd);
         drawCloudShadows(dt, 0.14);
         ctx.strokeStyle = "rgba(120,170,220,0.35)"; ctx.lineWidth = 10;
         ctx.beginPath();
@@ -644,6 +727,7 @@ function drawBackground(dt) {
     } else {
         // 要塞基地: タイル床 + リベット + 砲台 + レーダー + 警戒ライン
         ctx.fillStyle = "#26262c"; ctx.fillRect(0,0,canvas.width,canvas.height);
+        drawBgTiles(dt, spd);
         drawCloudShadows(dt, 0.16);
         ctx.strokeStyle = "rgba(255,80,80,0.12)"; ctx.lineWidth = 1;
         for (let y=-40;y<canvas.height+40;y+=40) { ctx.beginPath(); ctx.moveTo(0, y+sy); ctx.lineTo(canvas.width, y+sy); ctx.stroke(); }
@@ -684,6 +768,7 @@ function initStage() {
     stageTimer = 0; spawnTimer = 1; stageEnemiesLeft = STAGE_LENGTH + stageNum*6;
     turretSpawnTimer = 2.5; // ステージ3開始後、少し間を置いてから最初の砲台が現れるようにする
     initGroundDecor(stageNum);
+    initBgTiles(stageNum);
     showBanner("wave-banner", "STAGE " + stageNum + (isHardMode() ? " HARD" : ""));
 }
 
@@ -1679,11 +1764,12 @@ function updateBoss(dt, now) {
 
     // 女王バチ専用の追加ギミック(デコイ分身の常時維持): 「新たに出てくる雑魚敵」のように扱いたいという
     // リクエストに応え、一度にまとめて2~3体出して寿命切れで消える方式から、常に目標体数を維持し続ける方式に変更。
-    // 目標体数はノーマル2体・ハード3体。倒された(または何らかの理由で減った)場合は約2秒後に女王バチが補充する。
+    // 目標体数はノーマル3体・ハード5体(「もっと増やして」との指摘により2/3→3/5に引き上げ)。
+    // 倒された(または何らかの理由で減った)場合は約2秒後に女王バチが補充する。
     // ダッシュ中でも維持したいので、下の「ダッシュ中は攻撃しない」判定より前に置く。
     if (boss.def.entranceType === "fadeIn" && bossPhase >= 2) {
         if (boss.decoyRespawnTimers === undefined) boss.decoyRespawnTimers = [];
-        const targetCount = isHardMode() ? 3 : 2;
+        const targetCount = isHardMode() ? 5 : 3;
         const deficit = targetCount - bossDecoys.length - boss.decoyRespawnTimers.length;
         for (let k = 0; k < deficit; k++) {
             boss.decoyRespawnTimers.push(1.8 + Math.random() * 0.6); // 約2秒後に補充
@@ -1752,24 +1838,8 @@ function draw(dt) {
         });
     }
 
-    // プレイヤー
-    if (player.ship) {
-        const flashing = player.invuln > 0 && Math.floor(Date.now()/80)%2===0;
-        if (!flashing) {
-            if (player.ship.imgLoaded) {
-                const img = player.ship.outlineImg || player.ship.img;
-                const rh = 56, rw = rh * (img.width / img.height);
-                ctx.imageSmoothingEnabled = true;
-                ctx.drawImage(img, player.x + player.w/2 - rw/2, player.y + player.h/2 - rh/2, rw, rh);
-                ctx.imageSmoothingEnabled = false;
-            } else {
-                const s = player.ship.sprite, scale = 1.7;
-                drawSprite(s, player.x - (s.w*scale - player.w)/2, player.y - (s.h*scale - player.h)/2, scale, false);
-            }
-        }
-    }
-
     // 敵(画像アセットがあればそれを描画、失敗/未指定時は既存のドット絵spriteにフォールバック)
+    // 重なり順優先度「自機＞敵＞背景」により、自機より先に描く(自機が敵の上に重なるようにする)。
     enemies.forEach(e => {
         const def = ENEMY_DEFS[e.type];
         if (def.imgLoaded) {
@@ -1895,6 +1965,23 @@ function draw(dt) {
                     ctx.stroke();
                 }
             });
+        }
+    }
+
+    // プレイヤー: 重なり順優先度「自機＞敵＞背景」により、敵/ボス(+デコイ)より後ろ(=手前)に描く。
+    if (player.ship) {
+        const flashing = player.invuln > 0 && Math.floor(Date.now()/80)%2===0;
+        if (!flashing) {
+            if (player.ship.imgLoaded) {
+                const img = player.ship.outlineImg || player.ship.img;
+                const rh = 56, rw = rh * (img.width / img.height);
+                ctx.imageSmoothingEnabled = true;
+                ctx.drawImage(img, player.x + player.w/2 - rw/2, player.y + player.h/2 - rh/2, rw, rh);
+                ctx.imageSmoothingEnabled = false;
+            } else {
+                const s = player.ship.sprite, scale = 1.7;
+                drawSprite(s, player.x - (s.w*scale - player.w)/2, player.y - (s.h*scale - player.h)/2, scale, false);
+            }
         }
     }
 
