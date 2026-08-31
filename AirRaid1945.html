@@ -585,48 +585,50 @@ buildShipPicker();
 // ============ ステージ背景 ============
 let cloudShadows = [];
 let bgTiles = [];
-// 背景の地形タイルを散りばめる。「同じタイルでも大小をつけて奥行きを出す」方針により、
-// 大きい(near)ものほど手前・くっきり・速く流れ、小さい(far)ものほど奥・控えめ・ゆっくり流れる
-// (サイズと不透明度・スクロール速度を連動させた簡易パースで立体感を出す)。
-// 実在のシューティングゲーム(1943/DoDonPachi等の参考画像)をリサーチした結果、地形は
-// 半透明の飾りではなく「地面/海面の上にほぼ不透明に乗っている1枚絵」で、しかも同時に
-// 複数個重ならない・まばらに配置されている、という共通点が見えた。これに合わせて、
-// (1)不透明度をほぼ不透明寄りに引き上げ、(2)個数を減らし縦方向に間隔を強制して重なりを防ぎ、
-// (3)サイズ全体を8割に縮小、の3点を修正する。
+// 背景の地形タイルを散りばめる。
+// 【変遷】当初は自由な位置+大小+速度差(0.6~1.4倍)で配置していたが、「重なって見苦しい」との
+// 指摘を受け原因を検討。速度差があるまま自由配置だと、near(速い)がfar(遅い)に時間経過で
+// 追いついて重なる、という事故が起きやすいと判明。対策として、画面を2本の固定レーン(左右)に
+// 分け、各レーンの中でだけ大小を流し、レーン内の複数個は最初からほぼ同じ速度にして
+// (完全に同じだと単調なので±10%だけ差をつける)、追い越し=重なりが起きないようにした。
+// レーンの横幅もタイルが収まる範囲に制限し、中央の主戦闘レーンやレーン間にはみ出さないようにする。
+const BG_LANES = [0.24, 0.76]; // 画面幅に対する左右レーンの中心位置
+const BG_LANE_MAX_W = 0.30;    // レーンに収まる最大幅(画面幅比)。この幅に収まるようスケールを決める。
 function initBgTiles(stage) {
     bgTiles = [];
     const pool = STAGE_BG_TILE_POOL[stage] || STAGE_BG_TILE_POOL[1];
-    const count = 3;
-    // 縦方向をcount等分した帯の中にそれぞれ1個ずつ配置し、ワイプアラウンド1周(canvas.height*2)の中で
-    // 隣同士が近すぎて重なることがないようにする。
-    const bandH = (canvas.height * 2) / count;
-    for (let i = 0; i < count; i++) {
-        const key = pool[Math.floor(Math.random() * pool.length)];
-        const depth = Math.random(); // 0=far(奥) ~ 1=near(手前)
-        const scale = (0.35 + depth * 0.55) * 0.8; // 全体を8割に縮小(far:0.28~ near:~0.72)
-        // 中央の主戦闘レーン(画面幅の中央60%程度)は、near(大きい)ものが陣取ると弾/敵が見づらくなるため、
-        // depthが高い(手前に大きく見える)ものほど左右端寄りに追いやる。
-        const laneBias = depth * 0.55;
-        const side = Math.random() < 0.5 ? -1 : 1;
-        const xCenterFrac = 0.5 + side * (Math.random() * (0.5 - laneBias) + laneBias * 0.5);
-        bgTiles.push({
-            key,
-            x: xCenterFrac * canvas.width,
-            y: -canvas.height + i * bandH + Math.random() * bandH * 0.5,
-            scale,
-            depth,
-            opacity: 0.85 + depth * 0.15, // ほぼ不透明(far:0.85~ near:1.0)。地面/海面の上に乗って見えるように。
-            rotFlip: Math.random() < 0.5 ? -1 : 1 // 左右反転して同じ絵の反復感を減らす
-        });
-    }
+    const perLane = 2;
+    const bandH = (canvas.height * 2) / perLane;
+    BG_LANES.forEach(xFrac => {
+        for (let i = 0; i < perLane; i++) {
+            const key = pool[Math.floor(Math.random() * pool.length)];
+            const depth = Math.random(); // 0=far(小さい) ~ 1=near(大きい)。レーン内の大小の差だけに使う。
+            // レーンの最大幅に収まるスケール(far:6割~ near:10割の幅)を、実際の画像の横幅から逆算する。
+            const def = BG_TILE_DEFS[key];
+            const naturalW = (def && def.img && def.img.naturalWidth) ? def.img.naturalWidth : 480;
+            const laneMaxWpx = canvas.width * BG_LANE_MAX_W;
+            const scale = (laneMaxWpx * (0.6 + depth * 0.4)) / naturalW;
+            bgTiles.push({
+                key,
+                x: xFrac * canvas.width + (Math.random() - 0.5) * 10, // レーン内で少しだけ横位置をばらす
+                y: -canvas.height + i * bandH + Math.random() * bandH * 0.3,
+                scale,
+                depth,
+                // 速度差はごくわずか(0.95~1.05倍)にとどめ、同レーン内で追い越して重なるのを防ぐ。
+                // 全く同じ速度だと単調に見えるとの意見を踏まえ、わずかな差だけ残す。
+                speedMul: 0.95 + depth * 0.10,
+                opacity: 0.85 + depth * 0.15, // ほぼ不透明(far:0.85~ near:1.0)。地面/海面の上に乗って見えるように。
+                rotFlip: Math.random() < 0.5 ? -1 : 1 // 左右反転して同じ絵の反復感を減らす
+            });
+        }
+    });
 }
-// 背景タイルのスクロール移動+描画。near(scaleが大きい)ほど速く流れるようにして、
-// サイズ差に加えて速度差でも遠近感(近いものほど速く過ぎ去る)を補強する。
+// 背景タイルのスクロール移動+描画。
 function drawBgTiles(dt, baseSpeed) {
     bgTiles.forEach(t => {
         const def = BG_TILE_DEFS[t.key];
         if (!def || !def.loaded) return;
-        const speed = baseSpeed * (0.6 + t.depth * 0.8); // far:0.6倍~ near:1.4倍
+        const speed = baseSpeed * t.speedMul;
         t.y += dt * speed;
         if (t.y > canvas.height + 300) t.y -= canvas.height * 2;
         const img = def.img;
